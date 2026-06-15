@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+backend/.venv/
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Build outputs and caches
+build/
+dist/
+coverage/
+.remix/
+.vite/
+.cache/
+*.tsbuildinfo
+
+# Generated code and database artifacts
+/generated/prisma/
+
+# Python bytecode and tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local logs and transient files
+*.log
+error_log.txt
+
+# Editor and OS files
+.DS_Store
+.idea/
+.claude/
