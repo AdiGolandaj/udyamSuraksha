@@ -45,7 +45,7 @@ import { Trash2, Edit, ArrowLeft, Sparkles } from 'lucide-react'
 import { useTranslation } from '~/hooks/useTranslation'
 import { format } from 'date-fns'
 import { Grid } from '@mui/material'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@mui/x-charts'
 
 interface StockItemDetailLoaderData {
   userId: string
@@ -127,7 +127,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         quantity: stockItem.quantity,
         unit: stockItem.unit,
         estimatedValue: stockItem.estimatedValueInr,
-        storageLocation: stockItem.storageLocation ?? undefined,
+        storageLocation: stockItem.storageLocation,
         expiryDate: stockItem.expiryDate?.toISOString().split('T')[0],
         vulnerabilityScore: stockItem.vulnerabilityScore,
         sensitivities: stockItem.sensitivities.map(s => s.type.toLowerCase()),

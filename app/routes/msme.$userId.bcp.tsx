@@ -47,6 +47,7 @@ import { RotateCcw, Phone, Share2, Download, PackageOpen, ListChecks, AlertCircl
 interface BCPLoaderData {
   userId: string
   shopId: string
+  hasPlan: boolean
   completionPercent: number
   beforeStepsCompleted: number
   beforeStepsTotal: number
@@ -104,14 +105,31 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       throw new Response('Shop profile not found', { status: 404 })
     }
 
-    if (!shopProfile.bcpPlan) {
-      throw new Response('BCP plan not found', { status: 404 })
-    }
-
     const emergencyContacts = await db.emergencyContact.findMany({
       where: { userId: user.id },
       orderBy: { isPrimary: 'desc' },
     })
+
+    if (!shopProfile.bcpPlan) {
+      return json<BCPLoaderData>({
+        userId: user.id,
+        shopId: shopProfile.id,
+        hasPlan: false,
+        completionPercent: 0,
+        beforeStepsCompleted: 0, beforeStepsTotal: 0,
+        duringStepsCompleted: 0, duringStepsTotal: 0,
+        afterStepsCompleted: 0, afterStepsTotal: 0,
+        bcpPhases: [
+          { phase: 'BEFORE', steps: [] },
+          { phase: 'DURING', steps: [] },
+          { phase: 'AFTER', steps: [] },
+        ],
+        emergencyContacts: emergencyContacts.map(c => ({
+          id: c.id, name: c.name, phone: c.phone,
+          relationship: c.relationship, isPrimary: c.isPrimary,
+        })),
+      })
+    }
 
     const steps = shopProfile.bcpPlan.steps
     const bcpPhases = [
@@ -139,6 +157,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     const loaderData: BCPLoaderData = {
       userId: user.id,
       shopId: shopProfile.id,
+      hasPlan: true,
       completionPercent,
       beforeStepsCompleted: beforeSteps.filter(s => s.isCompleted).length,
       beforeStepsTotal: beforeSteps.length,
@@ -251,6 +270,7 @@ export default function MsmeBCP() {
   const { t } = useTranslation()
   const data = useLoaderData<BCPLoaderData>()
   const fetcher = useFetcher()
+  const isGenerating = fetcher.state !== 'idle' && fetcher.formData?.get('intent') === 'regenerate-plan'
 
   const handleToggleStep = (stepId: string, isCompleted: boolean) => {
     fetcher.submit(
@@ -267,6 +287,29 @@ export default function MsmeBCP() {
     fetcher.submit(
       { intent: 'regenerate-plan' },
       { method: 'POST' }
+    )
+  }
+
+  if (!data.hasPlan) {
+    return (
+      <div className="min-h-screen bg-surface-secondary p-4 md:p-6">
+        <PageHeader
+          title="Business Continuity Plan"
+          subtitle="Your personalised disaster response guide"
+        />
+        <SectionCard title="">
+          <EmptyState
+            icon={ListChecks}
+            title="No BCP plan yet"
+            description="Generate your personalised Business Continuity Plan based on your shop profile, location, and stock data."
+            action={{
+              label: isGenerating ? 'Generating…' : 'Generate My Plan',
+              onClick: handleRegeneratePlan,
+              disabled: isGenerating,
+            }}
+          />
+        </SectionCard>
+      </div>
     )
   }
 

@@ -11,6 +11,7 @@ interface EmptyStateProps {
     label: string;
     href?: string;
     onClick?: () => void;
+    disabled?: boolean;
   };
   size?: 'sm' | 'md' | 'lg';
 }
@@ -41,6 +42,7 @@ export function EmptyState({
           variant="outline"
           size="sm"
           onClick={action.onClick}
+          disabled={action.disabled}
           {...(action.href && { asChild: true })}
         >
           {action.href ? <a href={action.href}>{action.label}</a> : action.label}

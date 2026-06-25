@@ -1,4 +1,4 @@
-import { json, type LoaderFunction, type MetaFunction } from '@remix-run/node'
+import { json, redirect, type LoaderFunction, type MetaFunction } from '@remix-run/node'
 import { useLoaderData, isRouteErrorResponse, useRouteError } from '@remix-run/react'
 import { requireAuthenticatedUser } from '~/lib/auth.server'
 import { db } from '~/lib/db.server'
@@ -135,7 +135,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     })
 
     if (!shopProfile) {
-      throw new Response('Shop profile not found', { status: 404 })
+      return redirect('/register')
     }
 
     // Fetch unread alerts (top 3)
@@ -517,6 +517,8 @@ export default function MsmeDashboard() {
               <PolarAngleAxis
                 dataKey="name"
                 tick={{ fontSize: 12 }}
+                angle={90}
+                orientation="outer"
               />
               <PolarRadiusAxis angle={90} domain={[0, 100]} />
               <Radar name="Risk Score" dataKey="value" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />

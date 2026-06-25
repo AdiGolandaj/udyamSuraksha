@@ -1,4 +1,4 @@
-import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/node'
+import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/node'
 import { useLoaderData } from '@remix-run/react'
 import { authenticator } from '~/lib/auth.server'
 import { Button } from '~/components/ui/button'
@@ -10,9 +10,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const user = await authenticator.isAuthenticated(request)
   if (user) {
     if (user.role === 'msme') {
-      return { redirect: `/msme/${user.id}/dashboard` }
+      return redirect(`/msme/${user.id}/dashboard`)
     } else if (user.role === 'lrdb') {
-      return { redirect: `/lrdb/${user.id}/shops` }
+      return redirect(`/lrdb/${user.id}/shops`)
     }
   }
   return json({ user: null })

@@ -10,7 +10,7 @@ import {
   useRouteError,
   useFetcher,
 } from '@remix-run/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { requireAuthenticatedUser } from '~/lib/auth.server'
 import { db } from '~/lib/db.server'
 import { apiClient } from '~/lib/api.server'
@@ -210,9 +210,9 @@ export const action: ActionFunction = async ({ request, params }) => {
       )
     )
 
-    // Call Python API to recompute risk
-    await apiClient.post('/risk/score', {
-      shopId: shopProfile.id,
+    // Trigger risk score recalculation — fire and forget, don't fail the action if it errors
+    apiClient.post('/risk/score', { shopId: shopProfile.id }).catch((err) => {
+      console.warn('Risk score recalculation failed (non-fatal):', err?.message ?? err)
     })
 
     return json({ success: true, itemId: stockItem.id })
@@ -240,6 +240,13 @@ function AddStockDialog() {
       sensitivities: [],
     },
   })
+
+  useEffect(() => {
+    if (fetcher.data?.success) {
+      setOpen(false)
+      form.reset()
+    }
+  }, [fetcher.data])
 
   const sensitivityOptions = [
     'water',

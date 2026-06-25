@@ -3,6 +3,7 @@ import { useLoaderData, Outlet, isRouteErrorResponse, useRouteError } from '@rem
 import { requireAuthenticatedUser } from '~/lib/auth.server'
 import { db } from '~/lib/db.server'
 import { AppShell, ErrorCard } from '~/components/shared'
+import type { LoaderData } from '../types'
 
 export const meta: MetaFunction = () => [
   { title: 'MSME Dashboard | DisasterShield' },

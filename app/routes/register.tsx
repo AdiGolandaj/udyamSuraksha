@@ -1,5 +1,6 @@
 'use client'
 
+import leafletStyles from 'leaflet/dist/leaflet.css?url'
 import { useState, useEffect, useRef } from 'react'
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs, redirect } from '@remix-run/node'
 import { useLoaderData, useFetcher, useRevalidator } from '@remix-run/react'
@@ -26,6 +27,7 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Progress } from '~/components/ui/progress'
 import { requireUser } from '~/lib/auth.server'
 import { db } from '~/lib/db.server'
@@ -44,8 +46,15 @@ import {
  */
 interface NominatimResponse {
   address?: {
-    village?: string
+    neighbourhood?: string
     suburb?: string
+    residential?: string
+    quarter?: string
+    village?: string
+    town?: string
+    city?: string
+    city_district?: string
+    municipality?: string
     county?: string
     state_district?: string
     postcode?: string
@@ -62,6 +71,8 @@ interface ElevationResponse {
     elevation: number | null
   }>
 }
+
+export const links = () => [{ rel: 'stylesheet', href: leafletStyles }]
 
 /**
  * Loader: Verify user is authenticated and hasn't completed registration
@@ -141,9 +152,9 @@ export async function action({ request }: ActionFunctionArgs) {
         geocodeResult: {
           latitude: lat,
           longitude: lng,
-          village: address.village || address.suburb || '',
-          taluka: address.county || '',
-          district: address.state_district || 'Pune',
+          village: address.neighbourhood || address.suburb || address.residential || address.quarter || address.village || address.town || address.city || '',
+          taluka: address.county || address.city_district || address.municipality || '',
+          district: address.state_district || address.county || 'Pune',
           pincode: address.postcode || '',
           elevation: elevation,
         },
@@ -341,7 +352,9 @@ export default function RegisterPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<Partial<RegisterInput>>({
     role: 'msme',
+    ownerName: user.name,
     language: 'en',
+    hasBasement: false,
     notifyViaApp: true,
     notifyViaEmail: true,
     notifyViaSms: false,
@@ -381,6 +394,8 @@ export default function RegisterPage() {
       async (position) => {
         const { latitude, longitude } = position.coords
 
+        console.info('[DisasterShield] Device location fetched:', { latitude, longitude, accuracy: `${position.coords.accuracy}m` })
+
         // Call server action to geocode
         const formDataToSend = new FormData()
         formDataToSend.append('intent', 'geocode')
@@ -394,7 +409,8 @@ export default function RegisterPage() {
         setGeoError('Could not access your location. Please enter manually.')
         setShowManualEntry(true)
         setGeoLoading(false)
-      }
+      },
+      { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }
     )
   }
 
@@ -408,8 +424,89 @@ export default function RegisterPage() {
         ...fetcherData!.geocodeResult,
       }))
       setGeoLoading(false)
+    } else if (fetcherData?.error) {
+      setGeoError(fetcherData.error)
+      setGeoLoading(false)
     }
-  }, [fetcherData?.geocodeResult])
+  }, [fetcherData?.geocodeResult, fetcherData?.error])
+
+  // Leaflet map initialisation
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const onConfirmScreen = currentStep === 3 && !!geocodeResult && !showManualEntry
+    const onManualScreen  = currentStep === 3 && showManualEntry
+
+    if (!onConfirmScreen && !onManualScreen) {
+      if (map.current) {
+        map.current.remove()
+        map.current = null
+        marker.current = null
+      }
+      return
+    }
+
+    let cancelled = false
+
+    const initMap = async () => {
+      const L = (await import('leaflet')).default
+      if (cancelled || !mapContainer.current) return
+
+      // Fix Vite asset bundling breaking default marker icons
+      // @ts-expect-error private field
+      delete L.Icon.Default.prototype._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      })
+
+      const coords: [number, number] = geocodeResult
+        ? [geocodeResult.latitude, geocodeResult.longitude]
+        : [18.5204, 73.8567] // default: central Pune
+
+      // Update existing map rather than recreating it
+      if (map.current) {
+        map.current.setView(coords, 15)
+        marker.current?.setLatLng(coords)
+        return
+      }
+
+      const leafletMap = L.map(mapContainer.current).setView(coords, 15)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(leafletMap)
+
+      const leafletMarker = L.marker(coords, { draggable: onManualScreen }).addTo(leafletMap)
+
+      if (onManualScreen) {
+        const reverseGeocode = (lat: number, lng: number, source: 'drag' | 'click') => {
+          console.info(`[DisasterShield] Map pointer placed (${source}):`, { latitude: lat, longitude: lng })
+          const fd = new FormData()
+          fd.append('intent', 'geocode')
+          fd.append('latitude', lat.toString())
+          fd.append('longitude', lng.toString())
+          fetcher.submit(fd, { method: 'POST' })
+          setGeoLoading(true)
+        }
+        leafletMarker.on('dragend', () => {
+          const ll = leafletMarker.getLatLng()
+          reverseGeocode(ll.lat, ll.lng, 'drag')
+        })
+        leafletMap.on('click', (e: any) => {
+          leafletMarker.setLatLng(e.latlng)
+          reverseGeocode(e.latlng.lat, e.latlng.lng, 'click')
+        })
+      }
+
+      map.current = leafletMap
+      marker.current = leafletMarker
+    }
+
+    initMap()
+    return () => { cancelled = true }
+  }, [currentStep, showManualEntry, geocodeResult])
 
   // Render steps
   const renderStep1 = () => (
@@ -576,6 +673,10 @@ export default function RegisterPage() {
 
       {geocodeResult && !showManualEntry && (
         <div className="space-y-4">
+          <div
+            ref={mapContainer}
+            className="w-full h-64 rounded-lg border border-border overflow-hidden"
+          />
           <Card className="p-6 bg-feedback-success/10 border-feedback-success">
             <div className="flex items-start gap-3">
               <Check className="w-5 h-5 text-feedback-success mt-0.5" />
@@ -648,14 +749,8 @@ export default function RegisterPage() {
 
       <div
         ref={mapContainer}
-        className="w-full h-80 rounded-lg border border-border bg-surface-secondary"
-      >
-        {/* Leaflet map will be loaded here */}
-        <div className="w-full h-full flex items-center justify-center text-text-muted">
-          <MapPin className="w-5 h-5 mr-2" />
-          <span>Map loading...</span>
-        </div>
-      </div>
+        className="w-full h-80 rounded-lg border border-border overflow-hidden bg-surface-secondary"
+      />
 
       <div className="space-y-4">
         <div>
@@ -706,16 +801,14 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {!geocodeResult && (
-        <Button
-          type="button"
-          size="lg"
-          className="w-full bg-brand-primary hover:bg-brand-primary/90"
-          onClick={() => setCurrentStep(3.5)}
-        >
-          Confirm Location
-        </Button>
-      )}
+      <Button
+        type="button"
+        size="lg"
+        className="w-full bg-brand-primary hover:bg-brand-primary/90"
+        onClick={() => setCurrentStep(3.5)}
+      >
+        Confirm Location
+      </Button>
     </div>
   )
 
@@ -819,15 +912,22 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-lg">
-          <Label htmlFor="basement" className="mb-0">
-            Do you have a basement?
-          </Label>
-          <Switch
-            id="basement"
-            checked={formData.hasBasement || false}
-            onCheckedChange={(value) => handleFieldChange('hasBasement', value)}
-          />
+        <div>
+          <Label htmlFor="hasBasement">Do you have a basement?</Label>
+          <Select
+            value={formData.hasBasement ? 'yes' : 'no'}
+            onValueChange={(value) =>
+              handleFieldChange('hasBasement', value === 'yes')
+            }
+          >
+            <SelectTrigger id="hasBasement" className="mt-2">
+              <SelectValue placeholder="Select an option" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -888,21 +988,32 @@ export default function RegisterPage() {
           </Select>
         </div>
 
-        <div className="space-y-3 p-4 bg-surface-secondary rounded-lg">
-          <p className="font-semibold text-sm">Notification Preferences</p>
-          <div className="space-y-2">
+        <div>
+          <Label>Notification Preferences *</Label>
+          <p className="text-xs text-text-muted mt-1 mb-3">
+            Select all channels you'd like to receive alerts through
+          </p>
+          <div className="grid grid-cols-2 gap-3 p-4 border border-border rounded-lg">
             {[
               { key: 'notifyViaApp', label: 'App Notifications' },
               { key: 'notifyViaEmail', label: 'Email Notifications' },
               { key: 'notifyViaSms', label: 'SMS Alerts' },
               { key: 'notifyViaWhatsapp', label: 'WhatsApp Alerts' },
             ].map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <Label className="mb-0 text-sm font-normal">{label}</Label>
-                <Switch
+              <div key={key} className="flex items-center gap-2">
+                <Checkbox
+                  id={key}
                   checked={(formData as any)[key] || false}
-                  onCheckedChange={(value) => handleFieldChange(key, value)}
+                  onCheckedChange={(checked) =>
+                    handleFieldChange(key, checked === true)
+                  }
                 />
+                <Label
+                  htmlFor={key}
+                  className="mb-0 text-sm font-normal cursor-pointer"
+                >
+                  {label}
+                </Label>
               </div>
             ))}
           </div>
@@ -982,7 +1093,8 @@ export default function RegisterPage() {
     !!formData.village &&
     !!formData.taluka &&
     !!formData.district &&
-    (formData.pincode?.length === 6) &&
+    (formData.pincode?.length === 6)
+  const isStep3_5Valid =
     !!formData.powerSupplyType &&
     !!formData.connectivityType &&
     !!formData.shopFloorLevel &&
@@ -999,6 +1111,7 @@ export default function RegisterPage() {
     (currentStep === 1 && isStep1Valid) ||
     (currentStep === 2 && isStep2Valid) ||
     (currentStep === 3 && isStep3Valid) ||
+    (currentStep === 3.5 && isStep3_5Valid) ||
     (currentStep === 4 && isStep4Valid)
 
   const handleNext = async () => {
@@ -1007,8 +1120,13 @@ export default function RegisterPage() {
       return
     }
 
-    if (currentStep === 3 && !showManualEntry && geocodeResult) {
+    if (currentStep === 3 && (!showManualEntry && geocodeResult || showManualEntry)) {
       setCurrentStep(3.5)
+      return
+    }
+
+    if (currentStep === 3.5) {
+      setCurrentStep(4)
       return
     }
 
@@ -1131,7 +1249,7 @@ export default function RegisterPage() {
                 </button>
               </div>
             )}
-            {currentStep === 3 && showManualEntry && !geocodeResult && renderStep3Manual()}
+            {currentStep === 3 && showManualEntry && renderStep3Manual()}
             {currentStep === 3 && geocodeResult && !showManualEntry && renderStep3LocationConfirm()}
             {currentStep === 3.5 && renderStep3Building()}
             {currentStep === 4 && renderStep4()}

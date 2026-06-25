@@ -170,5 +170,135 @@
       "high": "उच्च",
       "critical": "महत्वपूर्ण"
     }
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "सकाळ बरी",
+      "afternoon": "नमस्कार",
+      "evening": "शुभ संध्याकाळ"
+    },
+    "stats": {
+      "riskScore": "जोखीम स्कोर",
+      "stockItems": "स्टॉक आयटम",
+      "potentialLoss": "संभाव्य नुकसान",
+      "alertsToday": "आज सतर्कता"
+    },
+    "alerts": {
+      "title": "सक्रिय सतर्कता",
+      "viewAll": "सर्व पहा",
+      "empty": {
+        "title": "कोणतीही सक्रिय सतर्कता नाही",
+        "description": "आपला व्यवसाय सध्या सक्रिय सतर्कतेपासून सुरक्षित आहे।"
+      }
+    },
+    "inventory": {
+      "title": "इन्व्हेंटरी सुरक्षा",
+      "manage": "स्टॉक व्यवस्थापन",
+      "mostVulnerable": "सर्वाधिक असुरक्षित आयटम",
+      "empty": {
+        "title": "कोणतेही स्टॉक आयटम नाहीत",
+        "description": "वैयक्तिक आपत्ती सतर्कतेसाठी आपला पहिला स्टॉक आयटम जोडा.",
+        "action": "आयटम जोडा"
+      }
+    },
+    "quickActions": {
+      "title": "त्वरित क्रिया",
+      "sos": "SOS पाठवा",
+      "notifyEmployees": "कर्मचारीयांना सूचित करा",
+      "viewBcp": "सुरक्षा योजना पहा",
+      "callLrdb": "LRDB ला कॉल करा"
+    },
+    "community": {
+      "title": "जवळचा समुदाय",
+      "openChat": "चॅट उघडा",
+      "activeMembers": "सक्रिय सदस्य",
+      "noMessages": "अद्याप कोणतेही समुदाय संदेश नाहीत."
+    },
+    "riskSnapshot": {
+      "title": "जोखीम आढावा",
+      "trend": "प्रवृत्ती",
+      "viewFull": "पूर्ण प्रोफाइल"
+    },
+    "weather": {
+      "title": "स्थानिक परिस्थिती",
+      "noData": "कोणताही हवामान डेटा उपलब्ध नाही."
+    }
+  },
+  "stock": {
+    "title": "माझा स्टॉक",
+    "subtitle": "आपली इन्व्हेंटरी व्यवस्थापित आणि सुरक्षित करा",
+    "addItem": "आयटम जोडा",
+    "empty": {
+      "title": "कोणतेही स्टॉक आयटम नाहीत",
+      "description": "वैयक्तिक आपत्ती सतर्कतेसाठी आपला पहिला स्टॉक आयटम जोडा.",
+      "action": "आयटम जोडा"
+    },
+    "filter": {
+      "search": "नावाने आयटम शोधा",
+      "category": "श्रेणीनुसार फिल्टर करा",
+      "sortBy": "क्रमवारी लावा",
+      "allCategories": "सर्व श्रेणी",
+      "sortName": "नाव A–Z",
+      "sortValue": "मूल्य उच्च–निम्न",
+      "sortVulnerability": "असुरक्षितता उच्च–निम्न"
+    },
+    "summary": {
+      "totalItems": "एकूण आयटम",
+      "totalValue": "एकूण अंदाजित मूल्य",
+      "highRisk": "उच्च जोखीम आयटम"
+    },
+    "table": {
+      "name": "आयटम नाव",
+      "quantity": "प्रमाण",
+      "value": "मूल्य",
+      "vulnerability": "असुरक्षितता",
+      "expiry": "मुदत",
+      "sensitivities": "संवेदनशीलता",
+      "actions": "क्रिया",
+      "view": "पहा"
+    },
+    "form": {
+      "name": "आयटम नाव",
+      "category": "श्रेणी",
+      "quantity": "प्रमाण",
+      "unit": "एकक",
+      "estimatedValue": "अंदाजित मूल्य (INR)",
+      "sensitivities": "आपत्ती संवेदनशीलता",
+      "submit": "आयटम जतन करा",
+      "submitting": "जतन होत आहे..."
+    },
+    "detail": {
+      "backToStock": "स्टॉककडे परत",
+      "breadcrumb": {
+        "stock": "स्टॉक"
+      },
+      "details": "तपशील",
+      "quantity": "प्रमाण",
+      "estimatedValue": "अंदाजित मूल्य",
+      "storageLocation": "साठवण स्थान",
+      "expiryDate": "मुदत समाप्ती तारीख",
+      "sensitivities": "संवेदनशीलता",
+      "vulnerabilityScore": "असुरक्षितता स्कोर",
+      "estimatedDamage": "अंदाजित नुकसान",
+      "disasterImpact": {
+        "title": "जर आपत्ती आली तर..."
+      },
+      "selectDisaster": "आपत्ती प्रकार निवडा",
+      "noDisasterData": "परिणाम डेटा पाहण्यासाठी आपत्ती प्रकार निवडा.",
+      "notProvided": "उपलब्ध नाही",
+      "recommendations": {
+        "title": "शिफारसी"
+      },
+      "delete": "आयटम हटवा",
+      "deleteConfirm": {
+        "title": "स्टॉक आयटम हटवायचे?",
+        "description": "ही क्रिया पूर्ववत केली जाऊ शकत नाही.",
+        "confirm": "हटवा",
+        "cancel": "रद्द करा"
+      }
+    },
+    "addItemDialog": {
+      "title": "स्टॉक आयटम जोडा"
+    }
   }
 }

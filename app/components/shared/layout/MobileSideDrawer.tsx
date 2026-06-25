@@ -43,29 +43,29 @@ interface NavItem {
   href: string
 }
 
-function getMobileNavItems(role: 'msme' | 'lrdb'): NavItem[] {
+function getMobileNavItems(role: 'msme' | 'lrdb', userId: string): NavItem[] {
   if (role === 'msme') {
     return [
-      { id: 'dashboard', label: 'nav.dashboard', icon: LayoutDashboard, href: '/msme/dashboard' },
-      { id: 'stock', label: 'nav.stock', icon: Package, href: '/msme/stock' },
-      { id: 'bcp', label: 'nav.bcp', icon: Shield, href: '/msme/bcp' },
-      { id: 'alerts', label: 'nav.alerts', icon: AlertTriangle, href: '/msme/alerts' },
-      { id: 'risk', label: 'nav.risk', icon: TrendingUp, href: '/msme/risk' },
-      { id: 'trends', label: 'nav.trends', icon: BarChart3, href: '/msme/trends' },
-      { id: 'forecasts', label: 'nav.forecasts', icon: Clock, href: '/msme/forecasts' },
-      { id: 'community', label: 'nav.community', icon: Users, href: '/msme/chat' },
-      { id: 'settings', label: 'nav.settings', icon: Settings, href: '/msme/settings' },
+      { id: 'dashboard', label: 'shared.navigation.dashboard', icon: LayoutDashboard, href: `/msme/${userId}/dashboard` },
+      { id: 'stock',     label: 'shared.navigation.stock',     icon: Package,         href: `/msme/${userId}/stock` },
+      { id: 'bcp',       label: 'shared.navigation.bcp',       icon: Shield,          href: `/msme/${userId}/bcp` },
+      { id: 'alerts',    label: 'shared.navigation.alerts',    icon: AlertTriangle,   href: `/msme/${userId}/alerts` },
+      { id: 'risk',      label: 'shared.navigation.risk',      icon: TrendingUp,      href: `/msme/${userId}/risk` },
+      { id: 'trends',    label: 'shared.navigation.trends',    icon: BarChart3,       href: `/msme/${userId}/trends` },
+      { id: 'forecasts', label: 'shared.navigation.forecasts', icon: Clock,           href: `/msme/${userId}/forecasts` },
+      { id: 'community', label: 'shared.navigation.chat',      icon: Users,           href: `/msme/${userId}/chat` },
+      { id: 'settings',  label: 'shared.navigation.settings',  icon: Settings,        href: `/msme/${userId}/settings` },
     ]
   }
 
   return [
-    { id: 'shops', label: 'nav.shops', icon: Package, href: '/lrdb/shops' },
-    { id: 'queries', label: 'nav.queries', icon: FileText, href: '/lrdb/queries' },
-    { id: 'alerts', label: 'nav.alerts', icon: AlertTriangle, href: '/lrdb/alerts' },
-    { id: 'reports', label: 'nav.reports', icon: BarChart3, href: '/lrdb/reports' },
-    { id: 'estimation', label: 'nav.estimation', icon: TrendingUp, href: '/lrdb/estimation' },
-    { id: 'community', label: 'nav.community', icon: Users, href: '/lrdb/chat' },
-    { id: 'settings', label: 'nav.settings', icon: Settings, href: '/lrdb/settings' },
+    { id: 'shops',      label: 'shared.navigation.shops',      icon: Package,       href: `/lrdb/${userId}/shops` },
+    { id: 'queries',    label: 'shared.navigation.queries',    icon: FileText,      href: `/lrdb/${userId}/queries` },
+    { id: 'alerts',     label: 'shared.navigation.alerts',     icon: AlertTriangle, href: `/lrdb/${userId}/alerts` },
+    { id: 'reports',    label: 'shared.navigation.reports',    icon: BarChart3,     href: `/lrdb/${userId}/reports` },
+    { id: 'estimation', label: 'shared.navigation.estimation', icon: TrendingUp,    href: `/lrdb/${userId}/estimation` },
+    { id: 'community',  label: 'shared.navigation.chat',       icon: Users,         href: `/lrdb/${userId}/chat` },
+    { id: 'settings',   label: 'shared.navigation.settings',   icon: Settings,      href: `/lrdb/${userId}/settings` },
   ]
 }
 
@@ -79,7 +79,7 @@ export function MobileSideDrawer({
 }: MobileSideDrawerProps) {
   const { t } = useTranslation()
   const location = useLocation()
-  const navItems = getMobileNavItems(role)
+  const navItems = getMobileNavItems(role, userId)
 
   const getInitials = (name: string) => {
     return name
@@ -114,9 +114,7 @@ export function MobileSideDrawer({
         <ScrollArea className="flex-1">
           <nav className="space-y-2 p-4">
             {navItems.map((item) => {
-              const isActive = location.pathname.startsWith(
-                item.href.split('/').slice(0, 3).join('/')
-              )
+              const isActive = location.pathname.startsWith(item.href)
               const Icon = item.icon
 
               return (
@@ -160,7 +158,7 @@ export function MobileSideDrawer({
             }}
           >
             <LogOut className="h-4 w-4" />
-            {t('auth.logout')}
+            {t('shared.navigation.logout')}
           </Button>
         </div>
       </SheetContent>

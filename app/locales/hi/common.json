@@ -170,5 +170,135 @@
       "high": "उच्च",
       "critical": "गंभीर"
     }
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "सुप्रभात",
+      "afternoon": "नमस्कार",
+      "evening": "शुभ संध्या"
+    },
+    "stats": {
+      "riskScore": "जोखिम स्कोर",
+      "stockItems": "स्टॉक आइटम",
+      "potentialLoss": "संभावित नुकसान",
+      "alertsToday": "आज के अलर्ट"
+    },
+    "alerts": {
+      "title": "सक्रिय अलर्ट",
+      "viewAll": "सभी देखें",
+      "empty": {
+        "title": "कोई सक्रिय अलर्ट नहीं",
+        "description": "आपका व्यवसाय वर्तमान में सक्रिय अलर्ट से सुरक्षित है।"
+      }
+    },
+    "inventory": {
+      "title": "इन्वेंटरी सुरक्षा",
+      "manage": "स्टॉक प्रबंधन",
+      "mostVulnerable": "सबसे कमज़ोर आइटम",
+      "empty": {
+        "title": "कोई स्टॉक आइटम नहीं",
+        "description": "व्यक्तिगत आपदा अलर्ट के लिए अपना पहला स्टॉक आइटम जोड़ें।",
+        "action": "आइटम जोड़ें"
+      }
+    },
+    "quickActions": {
+      "title": "त्वरित क्रियाएं",
+      "sos": "SOS भेजें",
+      "notifyEmployees": "कर्मचारियों को सूचित करें",
+      "viewBcp": "सुरक्षा योजना देखें",
+      "callLrdb": "LRDB को कॉल करें"
+    },
+    "community": {
+      "title": "निकटवर्ती समुदाय",
+      "openChat": "चैट खोलें",
+      "activeMembers": "सक्रिय सदस्य",
+      "noMessages": "अभी तक कोई समुदाय संदेश नहीं।"
+    },
+    "riskSnapshot": {
+      "title": "जोखिम अवलोकन",
+      "trend": "प्रवृत्ति",
+      "viewFull": "पूर्ण प्रोफ़ाइल"
+    },
+    "weather": {
+      "title": "स्थानीय परिस्थितियां",
+      "noData": "कोई मौसम डेटा उपलब्ध नहीं।"
+    }
+  },
+  "stock": {
+    "title": "मेरा स्टॉक",
+    "subtitle": "अपनी इन्वेंटरी प्रबंधित और सुरक्षित करें",
+    "addItem": "आइटम जोड़ें",
+    "empty": {
+      "title": "कोई स्टॉक आइटम नहीं",
+      "description": "व्यक्तिगत आपदा अलर्ट के लिए अपना पहला स्टॉक आइटम जोड़ें।",
+      "action": "आइटम जोड़ें"
+    },
+    "filter": {
+      "search": "नाम से आइटम खोजें",
+      "category": "श्रेणी द्वारा फ़िल्टर करें",
+      "sortBy": "क्रमबद्ध करें",
+      "allCategories": "सभी श्रेणियां",
+      "sortName": "नाम A–Z",
+      "sortValue": "मूल्य उच्च–निम्न",
+      "sortVulnerability": "संवेदनशीलता उच्च–निम्न"
+    },
+    "summary": {
+      "totalItems": "कुल आइटम",
+      "totalValue": "कुल अनुमानित मूल्य",
+      "highRisk": "उच्च जोखिम आइटम"
+    },
+    "table": {
+      "name": "आइटम नाम",
+      "quantity": "मात्रा",
+      "value": "मूल्य",
+      "vulnerability": "संवेदनशीलता",
+      "expiry": "समाप्ति",
+      "sensitivities": "संवेदनशीलताएं",
+      "actions": "क्रियाएं",
+      "view": "देखें"
+    },
+    "form": {
+      "name": "आइटम नाम",
+      "category": "श्रेणी",
+      "quantity": "मात्रा",
+      "unit": "इकाई",
+      "estimatedValue": "अनुमानित मूल्य (INR)",
+      "sensitivities": "आपदा संवेदनशीलताएं",
+      "submit": "आइटम सहेजें",
+      "submitting": "सहेजा जा रहा है..."
+    },
+    "detail": {
+      "backToStock": "स्टॉक पर वापस",
+      "breadcrumb": {
+        "stock": "स्टॉक"
+      },
+      "details": "विवरण",
+      "quantity": "मात्रा",
+      "estimatedValue": "अनुमानित मूल्य",
+      "storageLocation": "भंडारण स्थान",
+      "expiryDate": "समाप्ति तिथि",
+      "sensitivities": "संवेदनशीलताएं",
+      "vulnerabilityScore": "संवेदनशीलता स्कोर",
+      "estimatedDamage": "अनुमानित नुकसान",
+      "disasterImpact": {
+        "title": "यदि कोई आपदा हो..."
+      },
+      "selectDisaster": "आपदा प्रकार चुनें",
+      "noDisasterData": "प्रभाव डेटा देखने के लिए आपदा प्रकार चुनें।",
+      "notProvided": "उपलब्ध नहीं",
+      "recommendations": {
+        "title": "सुझाव"
+      },
+      "delete": "आइटम हटाएं",
+      "deleteConfirm": {
+        "title": "स्टॉक आइटम हटाएं?",
+        "description": "यह क्रिया पूर्ववत नहीं की जा सकती।",
+        "confirm": "हटाएं",
+        "cancel": "रद्द करें"
+      }
+    },
+    "addItemDialog": {
+      "title": "स्टॉक आइटम जोड़ें"
+    }
   }
 }

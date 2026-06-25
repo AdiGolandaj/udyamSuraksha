@@ -22,12 +22,14 @@ interface TabItem {
   href: string
 }
 
-const MAIN_TABS: TabItem[] = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: LayoutDashboard, href: '/msme/dashboard' },
-  { id: 'stock', label: 'nav.stock', icon: Package, href: '/msme/stock' },
-  { id: 'alerts', label: 'nav.alerts', icon: AlertTriangle, href: '/msme/alerts' },
-  { id: 'community', label: 'nav.community', icon: Users, href: '/msme/chat' },
-]
+function getMainTabs(userId: string): TabItem[] {
+  return [
+    { id: 'dashboard', label: 'shared.navigation.dashboard', icon: LayoutDashboard, href: `/msme/${userId}/dashboard` },
+    { id: 'stock',     label: 'shared.navigation.stock',     icon: Package,         href: `/msme/${userId}/stock` },
+    { id: 'alerts',    label: 'shared.navigation.alerts',    icon: AlertTriangle,   href: `/msme/${userId}/alerts` },
+    { id: 'community', label: 'shared.navigation.chat',      icon: Users,           href: `/msme/${userId}/chat` },
+  ]
+}
 
 export function BottomTabBar({
   userId,
@@ -39,15 +41,14 @@ export function BottomTabBar({
   const { t } = useTranslation()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const mainTabs = getMainTabs(userId)
 
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 border-t border-border-default bg-surface-primary px-0 py-2 lg:hidden">
         <div className="flex items-center justify-around">
-          {MAIN_TABS.map((tab) => {
-            const isActive = location.pathname.startsWith(
-              tab.href.split('/').slice(0, 3).join('/')
-            )
+          {mainTabs.map((tab) => {
+            const isActive = location.pathname.startsWith(tab.href)
             const Icon = tab.icon
             const badge =
               tab.id === 'alerts'
@@ -91,7 +92,7 @@ export function BottomTabBar({
             <div className="relative">
               <MoreVertical className="h-5 w-5" />
             </div>
-            <span className="text-xs">{t('nav.more')}</span>
+            <span className="text-xs">{t('shared.buttons.more')}</span>
           </button>
         </div>
       </nav>

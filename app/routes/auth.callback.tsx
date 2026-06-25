@@ -1,25 +1,17 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { type LoaderFunctionArgs } from '@remix-run/node'
 import { authenticator } from '~/lib/auth.server'
 
-/**
- * Google OAuth Callback Handler
- *
- * This route receives the authorization code from Google's OAuth callback.
- * It exchanges the code for an access token, fetches the user profile,
- * and creates or retrieves the user from the database.
- *
- * Always redirects to /register for profile setup/verification.
- */
 export async function loader({ request }: LoaderFunctionArgs) {
+  // remix-auth throws a Response (redirect) on both success and failure,
+  // so we must let Response instances propagate and only catch real errors.
   try {
-    const user = await authenticator.authenticate('google', request, {
+    return await authenticator.authenticate('google', request, {
       successRedirect: '/register',
       failureRedirect: '/login',
     })
-    return json({ user })
   } catch (error) {
-    // Fallback error handling - authenticator handles most cases
-    throw new Response('OAuth authentication failed', { status: 401 })
+    if (error instanceof Response) throw error
+    throw new Response('OAuth authentication failed', { status: 500 })
   }
 }
 

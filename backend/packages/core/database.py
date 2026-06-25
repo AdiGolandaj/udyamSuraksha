@@ -8,6 +8,10 @@ from typing import Generator, Optional
 from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase
 from sqlalchemy.pool import StaticPool
+import pymysql
+
+# Make PyMySQL available as MySQLdb so plain mysql:// URLs work without mysqlclient
+pymysql.install_as_MySQLdb()
 
 from packages.core.config import settings
 from packages.core.logger import setup_logger

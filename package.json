@@ -9,7 +9,11 @@
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
-    "postinstall": "node scripts/fix-stream-esm.cjs"
+    "postinstall": "node scripts/fix-stream-esm.cjs",
+    "db:list-users": "tsx scripts/list-users.ts",
+    "db:delete-user": "tsx scripts/delete-user.ts",
+    "db:seed-msme": "tsx scripts/seed-msme.ts",
+    "db:seed-lrdb": "tsx scripts/seed-lrdb.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -272,7 +272,20 @@
       "flood_incidents": "Flood Incidents",
       "ai_insights": "AI Insights",
       "supply_chain": "Supply Chain Patterns",
-      "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+      "months": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+      ]
     },
     "forecasts": {
       "title": "Estimates & Forecasts",
@@ -647,6 +660,136 @@
       "hours_ago": "{count} hours ago",
       "days_ago": "{count} days ago",
       "months_ago": "{count} months ago"
+    }
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening"
+    },
+    "stats": {
+      "riskScore": "Risk Score",
+      "stockItems": "Stock Items",
+      "potentialLoss": "Potential Loss",
+      "alertsToday": "Alerts Today"
+    },
+    "alerts": {
+      "title": "Active Alerts",
+      "viewAll": "View All",
+      "empty": {
+        "title": "No Active Alerts",
+        "description": "Your business is currently safe from active alerts."
+      }
+    },
+    "inventory": {
+      "title": "Inventory Safety",
+      "manage": "Manage Stock",
+      "mostVulnerable": "Most Vulnerable Items",
+      "empty": {
+        "title": "No Stock Items",
+        "description": "Add your first stock item to get personalised disaster alerts.",
+        "action": "Add Item"
+      }
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "sos": "Send SOS",
+      "notifyEmployees": "Notify Employees",
+      "viewBcp": "View Safety Plan",
+      "callLrdb": "Call LRDB"
+    },
+    "community": {
+      "title": "Nearby Community",
+      "openChat": "Open Chat",
+      "activeMembers": "active members",
+      "noMessages": "No community messages yet."
+    },
+    "riskSnapshot": {
+      "title": "Risk Overview",
+      "trend": "Trend",
+      "viewFull": "Full Profile"
+    },
+    "weather": {
+      "title": "Local Conditions",
+      "noData": "No weather data available."
+    }
+  },
+  "stock": {
+    "title": "My Stock",
+    "subtitle": "Manage and protect your inventory",
+    "addItem": "Add Item",
+    "empty": {
+      "title": "No Stock Items",
+      "description": "Add your first stock item to get personalised disaster alerts.",
+      "action": "Add Item"
+    },
+    "filter": {
+      "search": "Search items by name",
+      "category": "Filter by Category",
+      "sortBy": "Sort by",
+      "allCategories": "All Categories",
+      "sortName": "Name A–Z",
+      "sortValue": "Value High–Low",
+      "sortVulnerability": "Vulnerability High–Low"
+    },
+    "summary": {
+      "totalItems": "Total Items",
+      "totalValue": "Total Estimated Value",
+      "highRisk": "High Risk Items"
+    },
+    "table": {
+      "name": "Item Name",
+      "quantity": "Quantity",
+      "value": "Value",
+      "vulnerability": "Vulnerability",
+      "expiry": "Expiry",
+      "sensitivities": "Sensitivities",
+      "actions": "Actions",
+      "view": "View"
+    },
+    "form": {
+      "name": "Item Name",
+      "category": "Category",
+      "quantity": "Quantity",
+      "unit": "Unit",
+      "estimatedValue": "Estimated Value (INR)",
+      "sensitivities": "Disaster Sensitivities",
+      "submit": "Save Item",
+      "submitting": "Saving..."
+    },
+    "detail": {
+      "backToStock": "Back to Stock",
+      "breadcrumb": {
+        "stock": "Stock"
+      },
+      "details": "Details",
+      "quantity": "Quantity",
+      "estimatedValue": "Estimated Value",
+      "storageLocation": "Storage Location",
+      "expiryDate": "Expiry Date",
+      "sensitivities": "Sensitivities",
+      "vulnerabilityScore": "Vulnerability Score",
+      "estimatedDamage": "Estimated Damage",
+      "disasterImpact": {
+        "title": "If a Disaster Occurred..."
+      },
+      "selectDisaster": "Select Disaster Type",
+      "noDisasterData": "Select a disaster type to see impact data.",
+      "notProvided": "Not provided",
+      "recommendations": {
+        "title": "Recommendations"
+      },
+      "delete": "Delete Item",
+      "deleteConfirm": {
+        "title": "Delete Stock Item?",
+        "description": "This action cannot be undone.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      }
+    },
+    "addItemDialog": {
+      "title": "Add Stock Item"
     }
   }
 }
