@@ -57,6 +57,7 @@
     "date-fns": "^4.3.0",
     "i18next": "^23.16.4",
     "isbot": "^4.4.0",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.460.0",
     "next-themes": "^0.4.6",

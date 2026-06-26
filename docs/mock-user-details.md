@@ -25,6 +25,19 @@ Both scripts write directly to the MySQL database via Prisma. No Python API or L
 
 ---
 
+## Logging In as a Seed User (Dev Login)
+
+Seed users with `@disastershield.test` emails have no Google account — they cannot sign in via Google OAuth. Use the **Dev Login** page instead:
+
+1. Go to `http://localhost:5173/dev-login` (or click **Dev Login — bypass OAuth** at the bottom of the regular `/login` page)
+2. All users in the database are listed, grouped by role. Seed users show a `seed` badge.
+3. Click any user card to be logged in instantly — no Google account needed.
+4. To switch users: log out first, then return to `/dev-login` and click a different user.
+
+> Dev Login is blocked in production (`NODE_ENV=production` returns 404).
+
+---
+
 ## Step 1 — Sign In and Get the User UUID
 
 1. Open the app in a browser and sign in with Google using the account you want to seed

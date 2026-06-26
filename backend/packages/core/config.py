@@ -47,7 +47,7 @@ class Settings(BaseSettings):
         description="LLM provider (google/openai)"
     )
     GOOGLE_API_KEY: str = Field(default="", description="Google Generative AI API key")
-    GOOGLE_MODEL_NAME: str = Field(default="gemini-1.5-pro", description="Google model name")
+    GOOGLE_MODEL_NAME: str = Field(default="gemini-2.0-flash", description="Google model name")
     
     OPENAI_API_KEY: str = Field(default="", description="OpenAI API key")
     OPENAI_MODEL_NAME: str = Field(default="gpt-4-turbo", description="OpenAI model name")
@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     # ─────────────────────────────────────────
     METEOSOURCE_API_KEY: str = Field(default="", description="Meteosource weather API key")
     METEOSOURCE_BASE_URL: str = Field(
-        default="https://www.meteosource.com/api/v1",
-        description="Meteosource API base URL"
+        default="https://www.meteosource.com/api/v1/free",
+        description="Meteosource API base URL (include tier: /free or /flexi)"
     )
     
     NOMINATIM_BASE_URL: str = Field(
@@ -111,6 +111,16 @@ class Settings(BaseSettings):
     SCHEDULER_TIMEZONE: str = Field(default="Asia/Kolkata", description="Scheduler timezone")
     ALERT_BATCH_INTERVAL_HOURS: int = Field(default=1, description="Alert batch job interval in hours")
     LOCATION_REFRESH_INTERVAL_DAYS: int = Field(default=30, description="Location refresh interval in days")
+
+    # ─────────────────────────────────────────
+    # Email / SMTP
+    # ─────────────────────────────────────────
+    SMTP_HOST: str = Field(default="smtp.gmail.com", description="SMTP server host")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
+    SMTP_USER: str = Field(default="", description="SMTP username / sender address")
+    SMTP_PASS: str = Field(default="", description="SMTP password or app password")
+    SMTP_FROM: str = Field(default="", description="From address shown to recipients")
+    APP_BASE_URL: str = Field(default="http://localhost:3000", description="Frontend base URL for alert links")
 
     # ─────────────────────────────────────────
     # Rate Limiting

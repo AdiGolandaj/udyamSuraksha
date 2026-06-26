@@ -55,6 +55,12 @@ const sizeClasses: Record<string, string> = {
   lg: 'text-body px-4 py-2',
 }
 
+// AlertSeverity values (low/medium/high/critical) → RiskLevel keys
+const _severityAlias: Record<string, RiskLevel> = {
+  low: 'safe',
+  medium: 'moderate',
+}
+
 export function RiskBadge({
   level,
   size = 'md',
@@ -62,7 +68,9 @@ export function RiskBadge({
   showLabel = true,
   pulse = false,
 }: RiskBadgeProps) {
-  const config = riskConfig[level]
+  const resolvedLevel: RiskLevel = _severityAlias[level] ?? level
+  const config = riskConfig[resolvedLevel]
+  if (!config) return null
   const IconComponent = config.icon
 
   return (

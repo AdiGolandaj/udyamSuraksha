@@ -1,12 +1,11 @@
 import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/node'
-import { useLoaderData } from '@remix-run/react'
+import { useLoaderData, Link } from '@remix-run/react'
 import { authenticator } from '~/lib/auth.server'
 import { Button } from '~/components/ui/button'
 import { Card } from '~/components/ui/card'
-import { MapPin, LogIn } from 'lucide-react'
+import { MapPin, LogIn, FlaskConical } from 'lucide-react'
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // If already authenticated, redirect to dashboard
   const user = await authenticator.isAuthenticated(request)
   if (user) {
     if (user.role === 'msme') {
@@ -15,7 +14,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       return redirect(`/lrdb/${user.id}/shops`)
     }
   }
-  return json({ user: null })
+  return json({ user: null, isDev: process.env.NODE_ENV !== 'production' })
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -40,7 +39,7 @@ export function ErrorBoundary() {
 
 export default function LoginPage() {
   const data = useLoaderData<typeof loader>()
-  const user = 'user' in data ? data.user : null
+  const isDev = 'isDev' in data ? data.isDev : false
 
   return (
     <div className="min-h-screen bg-surface-secondary flex items-center justify-center p-4">
@@ -98,8 +97,21 @@ export default function LoginPage() {
           </div>
         </Card>
 
+        {/* Dev Login shortcut — hidden in production */}
+        {isDev && (
+          <div className="mt-4 text-center">
+            <Link
+              to="/dev-login"
+              className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-brand-primary transition-colors"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              Dev Login — bypass OAuth
+            </Link>
+          </div>
+        )}
+
         {/* Language Selector - Footer */}
-        <div className="mt-6 text-center">
+        <div className="mt-4 text-center">
           <p className="text-xs text-text-muted">
             Language selection available after login
           </p>

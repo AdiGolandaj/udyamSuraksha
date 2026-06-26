@@ -40,9 +40,23 @@ interface ForecastScenarioData {
   narrative: string
 }
 
+interface StockItemReport {
+  name: string
+  category: string
+  quantity: number
+  unit: string
+  estimatedValueInr: number
+  storageLocation: string | null
+  expiryDate: string | null
+  vulnerabilityScore: number
+  disasterSensitivities: string[]
+  notes: string | null
+}
+
 interface ForecastsLoaderData {
   userId: string
   shopId: string
+  shopName: string
   scenarios: ForecastScenarioData[]
   worstCaseLoss: number
   mostLikelyScenario: string
@@ -51,6 +65,7 @@ interface ForecastsLoaderData {
   hasDocumentedInventory: boolean
   hasBcpPlan: boolean
   actionedSuggestions: number
+  stockItems: StockItemReport[]
 }
 
 export const meta: MetaFunction = () => [
@@ -88,6 +103,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       }),
       db.stockItem.findMany({
         where: { shopProfileId: shopProfile.id },
+        include: { sensitivities: true },
       }),
     ])
 
@@ -136,6 +152,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     const loaderData: ForecastsLoaderData = {
       userId: user.id,
       shopId: shopProfile.id,
+      shopName: shopProfile.shopName,
       scenarios,
       worstCaseLoss,
       mostLikelyScenario,
@@ -144,6 +161,18 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       hasDocumentedInventory,
       hasBcpPlan,
       actionedSuggestions,
+      stockItems: stockItems.map(item => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        estimatedValueInr: item.estimatedValueInr,
+        storageLocation: item.storageLocation,
+        expiryDate: item.expiryDate ? item.expiryDate.toISOString() : null,
+        vulnerabilityScore: item.vulnerabilityScore,
+        disasterSensitivities: item.sensitivities.map(s => s.type),
+        notes: item.notes,
+      })),
     }
 
     return json(loaderData)
@@ -224,6 +253,57 @@ export const action: ActionFunction = async ({ request, params }) => {
   }
 }
 
+// ─── Prevention catalog ───────────────────────────────────────────────────────
+const PREVENTION_CATALOG: Record<string, Array<{
+  label: string
+  description: string
+  allocation: number
+}>> = {
+  FLOOD: [
+    { label: 'Waterproofing & Sealing', description: 'Seal doors, windows, and entry points against water ingress', allocation: 0.35 },
+    { label: 'Elevated Storage Racks', description: 'Raise shelves and stock above the expected flood waterline', allocation: 0.30 },
+    { label: 'Drainage Pump & Sump', description: 'Submersible pump with automatic float switch for rapid draining', allocation: 0.25 },
+    { label: 'Emergency Supplies', description: 'Sandbags, waterproof covers, and tarpaulins for rapid response', allocation: 0.10 },
+  ],
+  POWER_OUTAGE: [
+    { label: 'Generator / Inverter', description: 'Diesel or LPG generator to run critical equipment during cuts', allocation: 0.50 },
+    { label: 'UPS Systems', description: 'Protect computers, POS terminals, and refrigeration on outage', allocation: 0.25 },
+    { label: 'LED Emergency Lighting', description: 'Keep the shop safe and operational when grid power fails', allocation: 0.15 },
+    { label: 'Fuel & Battery Reserve', description: 'Stockpile adequate fuel or battery banks for extended outages', allocation: 0.10 },
+  ],
+  WINDSTORM: [
+    { label: 'Roof Reinforcement', description: 'Secure roofing sheets, ridges, and joints with storm clips', allocation: 0.40 },
+    { label: 'Window & Door Protection', description: 'Storm shutters or impact-resistant glass to prevent breach', allocation: 0.30 },
+    { label: 'Signage & Fixture Anchoring', description: 'Bolt down boards, AC units, and all outdoor fixtures', allocation: 0.20 },
+    { label: 'Emergency Tarps & Fasteners', description: 'Heavy-duty cover for rapid deployment after a roof breach', allocation: 0.10 },
+  ],
+  EARTHQUAKE: [
+    { label: 'Shelf & Rack Anchoring', description: 'Bolt heavy shelves and storage racks to walls and floor', allocation: 0.35 },
+    { label: 'Structural Safety Audit', description: 'Certified inspection of load-bearing walls and foundations', allocation: 0.30 },
+    { label: 'Gas Line Auto-Shutoff', description: 'Install automatic seismic gas shutoff valves', allocation: 0.20 },
+    { label: 'Emergency Kit & Water', description: 'First aid, water reserve, and food supply for 72 hours', allocation: 0.15 },
+  ],
+  DEFAULT: [
+    { label: 'Emergency Stock Buffer', description: 'Extra inventory of critical items to prevent stockouts post-disaster', allocation: 0.35 },
+    { label: 'Business Insurance Coverage', description: 'Comprehensive disaster insurance for shop premises and stock', allocation: 0.30 },
+    { label: 'Fire Safety Equipment', description: 'Fire extinguishers, smoke detectors, and sprinkler systems', allocation: 0.20 },
+    { label: 'Staff Emergency Training', description: 'Disaster response drills and evacuation protocol training', allocation: 0.15 },
+  ],
+}
+
+function getDisasterCategory(type: string): string {
+  const t = type.toUpperCase()
+  if (t.includes('FLOOD') || t.includes('WATER')) return 'FLOOD'
+  if (t.includes('POWER') || t.includes('OUTAGE')) return 'POWER_OUTAGE'
+  if (t.includes('WIND') || t.includes('STORM') || t.includes('CYCLONE')) return 'WINDSTORM'
+  if (t.includes('EARTH') || t.includes('QUAKE')) return 'EARTHQUAKE'
+  return 'DEFAULT'
+}
+
+function formatDisasterType(type: string): string {
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 export default function ForecastsPage() {
   const data = useLoaderData<ForecastsLoaderData>()
   const t = useTranslation()
@@ -244,16 +324,57 @@ export default function ForecastsPage() {
     }
   }
 
+  function downloadInventoryReport() {
+    const headers = [
+      'Item Name', 'Category', 'Quantity', 'Unit', 'Value (INR)',
+      'Storage Location', 'Expiry Date', 'Vulnerability Score (0–100)',
+      'Disaster Sensitivities', 'Notes',
+    ]
+    const rows = data.stockItems.map(item => [
+      item.name,
+      item.category,
+      item.quantity.toString(),
+      item.unit,
+      item.estimatedValueInr.toString(),
+      item.storageLocation ?? '',
+      item.expiryDate ? new Date(item.expiryDate).toLocaleDateString('en-IN') : '',
+      item.vulnerabilityScore.toString(),
+      item.disasterSensitivities.join('; '),
+      item.notes ?? '',
+    ])
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${data.shopName.replace(/\s+/g, '-')}-inventory-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const chartData = data.scenarios.map(s => ({
     name: s.disasterType,
     loss: s.estimatedLossInr,
     probability: s.probability,
   }))
 
-  const savingsPercentage = Math.min((investmentAmount / data.worstCaseLoss) * 100, 100)
-  const estimatedSavings = Math.round(
-    (savingsPercentage / 100) * data.worstCaseLoss * 0.4
-  )
+  const totalLoss = data.scenarios.reduce((sum, s) => sum + s.estimatedLossInr, 0)
+  const estimatedSavings = totalLoss > 0
+    ? Math.min(Math.round(investmentAmount * 3), Math.round(totalLoss * 0.78))
+    : 0
+  const roi = investmentAmount > 0 ? Math.round((estimatedSavings / investmentAmount) * 100) : 0
+
+  const topScenario = data.scenarios.length > 0
+    ? data.scenarios.reduce((best, s) => s.estimatedLossInr > best.estimatedLossInr ? s : best, data.scenarios[0])
+    : null
+  const preventionCategory = topScenario ? getDisasterCategory(topScenario.disasterType) : 'DEFAULT'
+  const preventionMeasures = PREVENTION_CATALOG[preventionCategory] ?? PREVENTION_CATALOG.DEFAULT
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -505,63 +626,201 @@ export default function ForecastsPage() {
             </div>
           </div>
 
-          <Button className="w-full" variant="outline">
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={downloadInventoryReport}
+            disabled={data.stockItems.length === 0}
+          >
             <Download className="mr-2 h-4 w-4" />
-            Download Inventory Report
+            {data.stockItems.length === 0 ? 'No Inventory to Download' : 'Download Inventory Report'}
           </Button>
         </div>
       </SectionCard>
 
-      {/* Prevention Investment Calculator */}
+      {/* Prevention vs Loss Calculator */}
       <SectionCard title="Prevention vs Loss Calculator">
-        <div className="space-y-4">
+        <p className="mb-5 text-sm text-muted-foreground">
+          Drag the slider to set a prevention budget. The left panel shows exactly what to spend it on; the right panel shows how each disaster's projected loss shrinks as a result.
+        </p>
+
+        {/* ── Slider ─────────────────────────────────────────────────────── */}
+        <div className="mb-6 rounded-xl border border-border-default bg-surface-secondary p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-text-primary">Prevention Budget</span>
+            <span className="text-xl font-bold text-brand-primary">
+              ₹{investmentAmount.toLocaleString('en-IN')}
+            </span>
+          </div>
+          <Slider
+            value={[investmentAmount]}
+            onValueChange={(value) => setInvestmentAmount(value[0])}
+            min={0}
+            max={50000}
+            step={500}
+            className="w-full"
+          />
+          <div className="mt-1 flex justify-between">
+            <span className="text-xs text-muted-foreground">₹0</span>
+            <span className="text-xs text-muted-foreground">₹50,000</span>
+          </div>
+        </div>
+
+        {/* ── Two-column body ─────────────────────────────────────────────── */}
+        <div className="grid gap-6 md:grid-cols-2">
+
+          {/* LEFT: WHAT to invest in */}
           <div>
-            <div className="mb-4 flex items-center justify-between">
-              <label className="text-sm font-medium">
-                Investment Amount: ₹{investmentAmount.toLocaleString()}
-              </label>
-              <span className="text-xs text-muted-foreground">₹0 – ₹50,000</span>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-brand-primary" />
+              <h4 className="text-sm font-semibold text-text-primary">What to invest in</h4>
+              {topScenario && (
+                <span className="ml-auto rounded-full bg-surface-tertiary px-2 py-0.5 text-xs text-text-secondary">
+                  Based on {formatDisasterType(topScenario.disasterType)} risk
+                </span>
+              )}
             </div>
-            <Slider
-              value={[investmentAmount]}
-              onValueChange={(value) => setInvestmentAmount(value[0])}
-              min={0}
-              max={50000}
-              step={500}
-              className="w-full"
-            />
+
+            <div className="space-y-2">
+              {preventionMeasures.map((measure, i) => {
+                const cost = Math.round(investmentAmount * measure.allocation)
+                return (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 rounded-lg border border-border-default bg-surface-primary p-3"
+                  >
+                    {/* Step number */}
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-xs font-bold text-white">
+                      {i + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium leading-tight">{measure.label}</p>
+                        <span className="shrink-0 text-sm font-bold text-brand-primary">
+                          {investmentAmount > 0 ? `₹${cost.toLocaleString('en-IN')}` : '—'}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground leading-snug">
+                        {measure.description}
+                      </p>
+                      {/* allocation bar */}
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <div className="h-1 flex-1 rounded-full bg-muted">
+                          <div
+                            className="h-1 rounded-full bg-brand-primary/50"
+                            style={{ width: `${measure.allocation * 100}%` }}
+                          />
+                        </div>
+                        <span className="w-7 text-right text-xs text-muted-foreground">
+                          {Math.round(measure.allocation * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm text-green-900">
-              <span className="font-semibold">Potential Savings:</span> Investing₹
-              {investmentAmount.toLocaleString()} in prevention could save up to ₹
-              {estimatedSavings.toLocaleString()} in flood damage
+          {/* RIGHT: HOW loss is reduced */}
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <h4 className="text-sm font-semibold text-text-primary">How it reduces loss</h4>
+            </div>
+
+            {data.scenarios.length === 0 ? (
+              <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border-default py-8 text-sm text-muted-foreground">
+                Generate forecasts first to see loss projections
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...data.scenarios]
+                  .sort((a, b) => b.estimatedLossInr - a.estimatedLossInr)
+                  .map((scenario) => {
+                    const scenarioSavings = totalLoss > 0
+                      ? Math.round(estimatedSavings * (scenario.estimatedLossInr / totalLoss))
+                      : 0
+                    const reducedLoss = Math.max(scenario.estimatedLossInr - scenarioSavings, 0)
+                    const reductionPct = scenario.estimatedLossInr > 0
+                      ? Math.round((scenarioSavings / scenario.estimatedLossInr) * 100)
+                      : 0
+                    const afterWidth = scenario.estimatedLossInr > 0
+                      ? Math.max((reducedLoss / scenario.estimatedLossInr) * 100, 4)
+                      : 0
+
+                    return (
+                      <div
+                        key={scenario.id}
+                        className="rounded-lg border border-border-default p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-medium">
+                            {formatDisasterType(scenario.disasterType)}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${getProbabilityColor(scenario.probability)}`}>
+                            {scenario.probability} risk
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {/* Before bar */}
+                          <div className="flex items-center gap-2">
+                            <span className="w-10 shrink-0 text-xs text-muted-foreground">Before</span>
+                            <div className="flex-1 overflow-hidden rounded-full bg-red-100">
+                              <div className="h-2 w-full rounded-full bg-red-400" />
+                            </div>
+                            <span className="w-14 shrink-0 text-right text-xs font-semibold text-red-700">
+                              ₹{(scenario.estimatedLossInr / 1000).toFixed(0)}K
+                            </span>
+                          </div>
+                          {/* After bar */}
+                          <div className="flex items-center gap-2">
+                            <span className="w-10 shrink-0 text-xs text-muted-foreground">After</span>
+                            <div className="flex-1 overflow-hidden rounded-full bg-green-100">
+                              <div
+                                className="h-2 rounded-full bg-green-500 transition-all duration-300"
+                                style={{ width: `${afterWidth}%` }}
+                              />
+                            </div>
+                            <span className="w-14 shrink-0 text-right text-xs font-semibold text-green-700">
+                              ₹{(reducedLoss / 1000).toFixed(0)}K
+                            </span>
+                          </div>
+                        </div>
+
+                        {reductionPct > 0 && (
+                          <p className="mt-1.5 text-xs font-medium text-green-700">
+                            ↓ {reductionPct}% reduction — saves ₹{(scenarioSavings / 1000).toFixed(0)}K
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Summary row ─────────────────────────────────────────────────── */}
+        <div className="mt-6 grid grid-cols-3 gap-3 border-t border-border-default pt-5">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">You Invest</p>
+            <p className="mt-0.5 text-lg font-bold text-text-primary">
+              ₹{investmentAmount.toLocaleString('en-IN')}
             </p>
           </div>
-
-          <div className="grid gap-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Current Worst Case Loss:</span>
-              <span className="font-semibold">
-                ₹{data.worstCaseLoss.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between rounded bg-muted p-2">
-              <span className="text-muted-foreground">Coverage After Investment:</span>
-              <span className="font-semibold">
-                ₹{(data.worstCaseLoss - estimatedSavings).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">ROI:</span>
-              <span className="font-semibold text-green-600">
-                {savingsPercentage > 0
-                  ? Math.round((estimatedSavings / investmentAmount) * 100)
-                  : 0}
-                %
-              </span>
-            </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">Losses Avoided</p>
+            <p className="mt-0.5 text-lg font-bold text-green-600">
+              ₹{estimatedSavings.toLocaleString('en-IN')}
+            </p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">Return on Investment</p>
+            <p className="mt-0.5 text-lg font-bold text-brand-primary">
+              {investmentAmount > 0 ? `${roi}%` : '—'}
+            </p>
           </div>
         </div>
       </SectionCard>

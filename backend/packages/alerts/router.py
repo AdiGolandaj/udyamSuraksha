@@ -1,11 +1,12 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from packages.core.logger import setup_logger
 from packages.core.database import get_db_session
-from .schemas import AlertGenerateRequest, AlertGenerationResponse, AlertResponse
+from .schemas import AlertGenerateRequest, AlertGenerationResponse, AlertResponse, WeatherData
 from .service import generate_alert_for_shop, get_active_alerts_for_user
+from .meteosource import fetch_current_weather
 
 logger = setup_logger(__name__)
 router = APIRouter(tags=["Alerts"])
@@ -39,6 +40,20 @@ async def get_active_alerts(
     except Exception as exc:
         logger.error("Fetch alerts error for user %s: %s", user_id, exc)
         raise HTTPException(status_code=500, detail="Failed to fetch alerts")
+
+
+@router.get("/weather", response_model=WeatherData)
+async def get_current_weather(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+) -> WeatherData:
+    """Fetch live current weather from Meteosource for a given coordinate."""
+    try:
+        data = await fetch_current_weather(lat, lon)
+        return WeatherData(**data)
+    except Exception as exc:
+        logger.error("Weather fetch error lat=%s lon=%s: %s", lat, lon, exc)
+        raise HTTPException(status_code=502, detail="Weather service unavailable")
 
 
 @router.get("/health", tags=["System"])

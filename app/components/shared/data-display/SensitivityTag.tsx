@@ -68,6 +68,7 @@ export function SensitivityTag({
   showIcon = false,
 }: SensitivityTagProps) {
   const config = sensitivityConfig[type]
+  if (!config) return null
   const IconComponent = config.icon
 
   const badge = (

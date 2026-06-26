@@ -9,11 +9,12 @@ _HEADERS = {"Accept": "application/json"}
 
 async def fetch_current_weather(lat: float, lng: float) -> dict:
     """
-    Fetch current weather from Meteosource /point/hourly (sections=current).
-    Returns a dict with temperature_c, rainfall_mm_per_hour, wind_speed_kmph,
-    wind_direction, and humidity_percent.
+    Fetch current weather from Meteosource /free/point (sections=current).
+    Returns temperature_c, rainfall_mm_per_hour, wind_speed_kmph,
+    wind_direction, cloud_cover_percent, and summary.
+    Note: humidity is not available on the free tier.
     """
-    url = f"{settings.METEOSOURCE_BASE_URL}/point/hourly"
+    url = f"{settings.METEOSOURCE_BASE_URL}/point"
     params = {
         "lat": lat,
         "lon": lng,
@@ -31,14 +32,18 @@ def _parse_current(data: dict) -> dict:
     current = data.get("current", {})
     wind = current.get("wind", {})
     precip = current.get("precipitation", {})
-    # Meteosource metric: wind in m/s → convert to km/h for threshold comparison
+    # Free tier returns wind speed in m/s → convert to km/h
     wind_ms = float(wind.get("speed", 0) or 0)
     return {
         "temperature_c": float(current.get("temperature", 0) or 0),
         "rainfall_mm_per_hour": float(precip.get("total", 0) or 0),
+        "rainfall_type": precip.get("type") or "none",
         "wind_speed_kmph": round(wind_ms * 3.6, 1),
+        "wind_angle": int(wind.get("angle", 0) or 0),
         "wind_direction": wind.get("dir") or "N",
-        "humidity_percent": float(current.get("humidity", 0) or 0),
+        "cloud_cover_percent": float(current.get("cloud_cover", 0) or 0),
+        "summary": current.get("summary") or "",
+        "icon": current.get("icon") or "",
     }
 
 

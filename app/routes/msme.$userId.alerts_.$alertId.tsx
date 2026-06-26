@@ -43,8 +43,27 @@ import {
 } from '~/components/ui/alert-dialog'
 import { useTranslation } from '~/hooks/useTranslation'
 import { format } from 'date-fns'
-import { Grid } from '@mui/material'
 import { ArrowLeft, Phone, MessageCircle } from 'lucide-react'
+
+// AlertCategory → SensitivityType mapping (different enums in schema)
+const CATEGORY_SENSITIVITIES: Record<string, string[]> = {
+  FLOOD:        ['WATER'],
+  WIND:         ['FRAGILE'],
+  POWER_OUTAGE: ['PERISHABLE'],
+  HEATWAVE:     ['HEAT', 'PERISHABLE'],
+  LANDSLIDE:    ['WATER', 'FRAGILE'],
+  TRANSPORT:    [],
+  OTHER:        [],
+}
+
+// Handles both old JSON-blob format and new plain-text summary
+function parseSummary(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.summary === 'string') return parsed.summary
+  } catch {}
+  return raw
+}
 
 interface AffectedStockItem {
   id: string
@@ -144,19 +163,18 @@ export const loader: LoaderFunction = async ({ request, params }) => {
 
     const alert = alertRecipient.alert
 
-    // Fetch affected stock items
+    // Fetch affected stock items using sensitivity type mapping
+    // (AlertCategory and SensitivityType are different enums)
+    const sensitivityTypes = CATEGORY_SENSITIVITIES[alert.category] ?? []
     const affectedItems = await db.stockItem.findMany({
       where: {
         shopProfileId: shopProfile.id,
-        sensitivities: {
-          some: {
-            type: alert.category as any,
-          },
-        },
+        ...(sensitivityTypes.length > 0
+          ? { sensitivities: { some: { type: { in: sensitivityTypes as any[] } } } }
+          : {}),
       },
-      include: {
-        sensitivities: true,
-      },
+      include: { sensitivities: true },
+      orderBy: { estimatedValueInr: 'desc' },
       take: 10,
     })
 
@@ -175,7 +193,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         return {
           id: item.id,
           name: item.name,
-          sensitivity: item.sensitivities[0]?.type.toLowerCase() || 'unknown',
+          sensitivity: (item.sensitivities[0]?.type ?? '').toLowerCase() as any,
           estimatedDamage: forecast?.estimatedDamageInr || 0,
           status: forecast?.estimatedDamageInr ? 'AT_RISK' : 'MONITOR',
         }
@@ -184,12 +202,14 @@ export const loader: LoaderFunction = async ({ request, params }) => {
 
     // Get alert actions and their completion status
     const recipient = alert.recipients[0]
-    const recommendedActions: AlertAction[] = (recipient?.actionResults || []).map((result: any) => ({
-      id: result.id,
-      title: result.alertAction.label,
-      description: result.alertAction.actionType,
-      isCompleted: result.isCompleted,
-    }))
+    const recommendedActions: AlertAction[] = (recipient?.actionResults || [])
+      .sort((a: any, b: any) => (a.alertAction.orderIndex ?? 0) - (b.alertAction.orderIndex ?? 0))
+      .map((result: any) => ({
+        id: result.id,
+        title: result.alertAction.label,
+        description: '',
+        isCompleted: result.isCompleted,
+      }))
 
     const completedActionsCount = recommendedActions.filter(a => a.isCompleted).length
 
@@ -201,7 +221,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         title: alert.title,
         category: alert.category.replace(/_/g, ' '),
         severity: alert.severity,
-        summary: alert.summary,
+        summary: parseSummary(alert.summary),
         isRead: true, // Just marked as read
         createdAt: alert.createdAt.toISOString(),
         updatedAt: alert.updatedAt.toISOString(),
@@ -392,51 +412,47 @@ export default function MsmeAlertDetail() {
       {/* Emergency Support */}
       <SectionCard title="Need Help?">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button variant="outline" className="gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="flex items-center gap-2 w-full justify-center">
-                  <Phone className="w-4 h-4" />
-                  Request Support from LRDB
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Request Emergency Support</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Your LRDB officer will be notified and can provide immediate assistance.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="flex gap-3 justify-end">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction>Send Request</AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialog>
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="gap-2 w-full">
+                <Phone className="w-4 h-4" />
+                Request Support from LRDB
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Request Emergency Support</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Your LRDB officer will be notified and can provide immediate assistance.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="flex gap-3 justify-end">
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction>Send Request</AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
 
-          <Button variant="outline" className="gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="flex items-center gap-2 w-full justify-center">
-                  <MessageCircle className="w-4 h-4" />
-                  Ask Community for Help
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Send SOS to Community</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Alert nearby business owners in your community group for mutual aid and resource sharing.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="flex gap-3 justify-end">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction>Send SOS</AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialog>
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="gap-2 w-full">
+                <MessageCircle className="w-4 h-4" />
+                Ask Community for Help
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send SOS to Community</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Alert nearby business owners in your community group for mutual aid and resource sharing.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="flex gap-3 justify-end">
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction>Send SOS</AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </SectionCard>
     </div>

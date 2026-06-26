@@ -93,7 +93,16 @@ interface DashboardLoaderData {
   }>
   riskTrendValue: number
   trendDirection: 'up' | 'down'
-  weatherCondition: string
+  weather: {
+    summary: string
+    icon: string
+    temperature_c: number
+    rainfall_mm_per_hour: number
+    rainfall_type: string
+    wind_speed_kmph: number
+    wind_direction: string
+    cloud_cover_percent: number
+  } | null
   rainfallTrend: Array<{
     date: string
     value: number
@@ -187,15 +196,24 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       },
     ]
 
-    // Fetch rainfall trend data
-    const trendData = await db.trendDataPoint.findMany({
-      where: {
-        regionCode: shopProfile.regionCode,
-        trendType: 'rainfall',
-      },
-      orderBy: { recordedAt: 'asc' },
-      take: 30,
-    })
+    // Fetch rainfall trend data and live weather in parallel
+    const [trendData, weather] = await Promise.all([
+      db.trendDataPoint.findMany({
+        where: { regionCode: shopProfile.regionCode, trendType: 'rainfall' },
+        orderBy: { recordedAt: 'asc' },
+        take: 30,
+      }),
+      (async () => {
+        if (!shopProfile.latitude || !shopProfile.longitude) return null
+        try {
+          return await apiClient.get(
+            `/alerts/weather?lat=${shopProfile.latitude}&lon=${shopProfile.longitude}`
+          )
+        } catch {
+          return null
+        }
+      })(),
+    ])
 
     const loaderData: DashboardLoaderData = {
       userId: user.id,
@@ -231,7 +249,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       topSuggestions: shopProfile.riskProfile?.suggestions ?? [],
       riskTrendValue: 5,
       trendDirection: 'down' as const,
-      weatherCondition: 'Monsoon Season — Elevated Flood Risk',
+      weather,
       rainfallTrend: trendData.map(t => ({
         date: format(t.recordedAt, 'MMM dd'),
         value: t.value,
@@ -544,9 +562,45 @@ export default function MsmeDashboard() {
       {/* Section 2.8: Local Conditions */}
       <SectionCard title={t('dashboard.weather.title')}>
         <div className="space-y-4">
-          <div className="p-3 bg-surface-secondary rounded-md">
-            <p className="text-sm font-semibold">{data.weatherCondition}</p>
-          </div>
+          {data.weather ? (
+            <>
+              <div className="p-3 bg-surface-secondary rounded-md">
+                <p className="text-sm font-semibold capitalize">{data.weather.summary}</p>
+              </div>
+              <Grid container spacing={2}>
+                <Grid item xs={6} sm={3}>
+                  <div className="p-3 rounded-lg border text-center">
+                    <p className="text-xs text-text-secondary mb-1">Temperature</p>
+                    <p className="text-xl font-bold">{data.weather.temperature_c}°C</p>
+                  </div>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <div className="p-3 rounded-lg border text-center">
+                    <p className="text-xs text-text-secondary mb-1">Rainfall</p>
+                    <p className="text-xl font-bold">{data.weather.rainfall_mm_per_hour}</p>
+                    <p className="text-xs text-text-secondary">mm/hr · {data.weather.rainfall_type}</p>
+                  </div>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <div className="p-3 rounded-lg border text-center">
+                    <p className="text-xs text-text-secondary mb-1">Wind</p>
+                    <p className="text-xl font-bold">{data.weather.wind_speed_kmph}</p>
+                    <p className="text-xs text-text-secondary">km/h · {data.weather.wind_direction}</p>
+                  </div>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <div className="p-3 rounded-lg border text-center">
+                    <p className="text-xs text-text-secondary mb-1">Cloud Cover</p>
+                    <p className="text-xl font-bold">{data.weather.cloud_cover_percent}%</p>
+                  </div>
+                </Grid>
+              </Grid>
+            </>
+          ) : (
+            <div className="p-3 bg-surface-secondary rounded-md">
+              <p className="text-sm text-text-secondary">Weather data unavailable — shop location not set</p>
+            </div>
+          )}
           {data.rainfallTrend.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={data.rainfallTrend}>

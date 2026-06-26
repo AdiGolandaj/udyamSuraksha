@@ -5,8 +5,14 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, MetaFunction } from "@remix-run/node";
+import { TooltipProvider } from "~/components/ui/tooltip";
 import "~/styles/globals.css";
+
+export const meta: MetaFunction = () => [
+  { charSet: "utf-8" },
+  { name: "viewport", content: "width=device-width, initial-scale=1" },
+];
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -25,13 +31,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
       <body className="bg-surface-secondary text-text-primary font-sans antialiased">
-        {children}
+        <TooltipProvider>
+          {children}
+        </TooltipProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

@@ -59,6 +59,26 @@ export const meta: MetaFunction = () => [
   { title: 'Alerts | DisasterShield' },
 ]
 
+// Handles both old JSON-blob format and new plain-text summary
+function parseSummary(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.summary === 'string') return parsed.summary
+  } catch {}
+  return raw
+}
+
+// AlertCategory → SensitivityType mapping (different enums in schema)
+const CATEGORY_SENSITIVITIES: Record<string, string[]> = {
+  FLOOD:         ['WATER'],
+  WIND:          ['FRAGILE'],
+  POWER_OUTAGE:  ['PERISHABLE'],
+  HEATWAVE:      ['HEAT', 'PERISHABLE'],
+  LANDSLIDE:     ['WATER', 'FRAGILE'],
+  TRANSPORT:     [],
+  OTHER:         [],
+}
+
 export const loader: LoaderFunction = async ({ request, params }) => {
   try {
     const user = await requireAuthenticatedUser(request)
@@ -70,6 +90,12 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     // Get filter from URL search params
     const url = new URL(request.url)
     const filter = url.searchParams.get('filter') || 'all'
+
+    // Fetch shop profile once — used to scope stock item queries per alert
+    const shopProfile = await db.shopProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    })
 
     // Fetch all alert recipients for this user
     let where: any = {
@@ -107,30 +133,43 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       orderBy: { alert: { createdAt: 'desc' } },
     })
 
-    // Fetch affected items for each alert
+    // Fetch affected stock items per alert — scoped to this user's shop
     const alerts: AlertWithDetails[] = await Promise.all(
       alertRecipients.map(async recipient => {
         const alert = recipient.alert
 
-        // Get affected stock items matching the alert's sensitivity
-        const affectedItems = await db.stockItem.findMany({
-          where: {
-            shopProfileId: recipient.alert.recipients[0]?.userId, // This won't work as is; need shop lookup
-          },
-          take: 3,
-        })
+        const sensitivityTypes = CATEGORY_SENSITIVITIES[alert.category] ?? []
+        const affectedItems =
+          shopProfile && sensitivityTypes.length > 0
+            ? await db.stockItem.findMany({
+                where: {
+                  shopProfileId: shopProfile.id,
+                  sensitivities: { some: { type: { in: sensitivityTypes as any[] } } },
+                },
+                select: { name: true, estimatedValueInr: true },
+                orderBy: { estimatedValueInr: 'desc' },
+                take: 3,
+              })
+            : shopProfile
+              ? await db.stockItem.findMany({
+                  where: { shopProfileId: shopProfile.id },
+                  select: { name: true, estimatedValueInr: true },
+                  orderBy: { estimatedValueInr: 'desc' },
+                  take: 3,
+                })
+              : []
 
         return {
           id: alert.id,
           title: alert.title,
           category: alert.category.replace(/_/g, ' '),
           severity: alert.severity,
-          summary: alert.summary,
+          summary: parseSummary(alert.summary),
           isRead: recipient.isRead,
           createdAt: alert.createdAt.toISOString(),
           affectedItems: affectedItems.map(item => ({
             name: item.name,
-            estimatedDamage: 0, // Would come from ForecastAffectedItem
+            estimatedDamage: item.estimatedValueInr ?? 0,
           })),
           primaryAction: alert.recipients[0]?.actionResults[0]
             ? {
@@ -199,19 +238,19 @@ function AlertListByDate({ alerts, onNavigate }: { alerts: AlertWithDetails[]; o
             </div>
             <div className="space-y-2 mt-2">
               {groupAlerts.map(alert => (
-                <div key={alert.id} onClick={() => onNavigate(alert.id)} className="cursor-pointer">
-                  <AlertCard
-                    alertId={alert.id}
-                    title={alert.title}
-                    severity={alert.severity.toLowerCase() as any}
-                    category={alert.category}
-                    isRead={alert.isRead}
-                    summary={alert.summary}
-                    affectedItems={alert.affectedItems.slice(0, 2).map(i => i.name)}
-                    issuedAt={alert.createdAt}
-                    isExpanded={false}
-                  />
-                </div>
+                <AlertCard
+                  key={alert.id}
+                  alertId={alert.id}
+                  title={alert.title}
+                  severity={alert.severity.toLowerCase() as any}
+                  category={alert.category}
+                  isRead={alert.isRead}
+                  summary={alert.summary}
+                  affectedItems={alert.affectedItems.slice(0, 2).map(i => i.name)}
+                  issuedAt={alert.createdAt}
+                  isExpanded={false}
+                  onViewDetails={() => onNavigate(alert.id)}
+                />
               ))}
             </div>
           </div>

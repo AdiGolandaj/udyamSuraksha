@@ -55,18 +55,23 @@ export function ChatInput({
 
   // Handle sending message
   const handleSend = async () => {
-    if (!content.trim() || isSending) return
+    if (!content.trim() || isSending) {
+      console.log('[ChatInput] Send blocked — empty content or already sending', { hasContent: !!content.trim(), isSending })
+      return
+    }
 
+    console.log('[ChatInput] handleSend triggered', { channelId, userId, contentLength: content.trim().length, preview: content.trim().slice(0, 50) })
     setIsSending(true)
     try {
       await onSendMessage(content.trim())
+      console.log('[ChatInput] Message sent successfully', { channelId })
       setContent('')
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
     } catch (error) {
-      console.error('Failed to send message:', error)
+      console.error('[ChatInput] Failed to send message:', error)
     } finally {
       setIsSending(false)
     }

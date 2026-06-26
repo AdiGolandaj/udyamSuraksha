@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import {
   useChannelStateContext,
   useChannelActionContext,
@@ -6,12 +6,10 @@ import {
   Window,
 } from 'stream-chat-react'
 import { Button } from '~/components/ui/button'
-import { ScrollArea } from '~/components/ui/scroll-area'
 import { useTranslation } from '~/hooks/useTranslation'
-import { Phone, Video, Info } from 'lucide-react'
+import { Phone, Video } from 'lucide-react'
 import { ChatBubble } from './ChatBubble'
 import { ChatInput } from './ChatInput'
-import { CallBar } from './CallBar'
 
 export interface ChatThreadProps {
   groupId: string
@@ -42,15 +40,11 @@ export function ChatThread({
   onSendSOS,
 }: ChatThreadProps) {
   const { t } = useTranslation()
-  const { channel, messages, members } = useChannelStateContext()
-  const { sendMessage, loadMore } = useChannelActionContext()
+  const { channel } = useChannelStateContext()
+  const { sendMessage } = useChannelActionContext()
 
-  // Handle infinite scroll - load more messages when scrolled to top
-  const handleLoadMore = React.useCallback(async () => {
-    if (loadMore) {
-      await loadMore(20)
-    }
-  }, [loadMore])
+  // channel.data.member_count is populated by ch.watch() and is reliable
+  const memberCount = (channel?.data as any)?.member_count ?? 0
 
   return (
     <Window>
@@ -61,7 +55,7 @@ export function ChatThread({
             {groupName}
           </h2>
           <p className="text-caption text-text-secondary">
-            {Object.keys(members ?? {}).length} {t('common.members')}
+            {memberCount} {t('common.members')}
           </p>
         </div>
 
@@ -90,34 +84,21 @@ export function ChatThread({
         </div>
       </div>
 
-      {/* Messages area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <ScrollArea className="flex-1">
-          <MessageList
-            Message={CustomChatBubble}
-            disableDateSeparator={false}
-            messageActions={
-              role === 'lrdb'
-                ? ['pin', 'flag', 'delete', 'react']
-                : ['react', 'flag']
-            }
-          />
-
-          {/* Load more button at bottom */}
-          {messages && messages.length > 20 && (
-            <div className="flex justify-center p-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLoadMore}
-              >
-                {t('chat.load-older')}
-              </Button>
-            </div>
-          )}
-        </ScrollArea>
-
-      </div>
+      {/*
+        MessageList from stream-chat-react manages its own scroll container
+        internally (via InfiniteScroll). Do NOT wrap it in ScrollArea or any
+        other overflow container — doing so collapses the list to 0 height.
+        Window provides the correct flex-column layout.
+      */}
+      <MessageList
+        Message={CustomChatBubble}
+        disableDateSeparator={false}
+        messageActions={
+          role === 'lrdb'
+            ? ['pin', 'flag', 'delete', 'react']
+            : ['react', 'flag']
+        }
+      />
 
       {/* Input area */}
       <ChatInput
@@ -125,10 +106,13 @@ export function ChatThread({
         userId={userId}
         showSOSButton={role === 'msme'}
         onSendMessage={async (content) => {
+          console.log('[ChatThread] onSendMessage invoked', { groupId, userId, contentLength: content.length })
           try {
+            console.log('[ChatThread] Calling Stream sendMessage...', { channelName: channel?.data?.name })
             await sendMessage({ text: content })
+            console.log('[ChatThread] Stream sendMessage succeeded')
           } catch (error) {
-            console.error('Failed to send message:', error)
+            console.error('[ChatThread] Stream sendMessage failed:', error)
           }
         }}
         onSOS={onSendSOS}
@@ -144,20 +128,22 @@ export function ChatThread({
  * and pass to our custom rendering component.
  */
 function CustomChatBubble({ message, ...props }: any) {
-  const isSOS = message.custom?.isSOS
-  const isAnnouncement = message.custom?.isAnnouncement
+  if (!message) return null
+
+  const isSOS = message.custom?.isSOS ?? false
+  const isAnnouncement = message.custom?.isAnnouncement ?? false
   const isSystem = message.type === 'system'
-  const isLocation = message.custom?.isLocation
+  const isLocation = message.custom?.isLocation ?? false
 
   return (
     <ChatBubble
-      messageId={message.id}
+      messageId={message.id ?? ''}
       senderId={message.user?.id}
       senderName={message.user?.name}
       senderAvatar={message.user?.image}
-      content={message.text}
-      timestamp={message.created_at}
-      isOwn={props.isOwn}
+      content={message.text ?? ''}
+      timestamp={message.created_at ?? new Date().toISOString()}
+      isOwn={props.isOwn ?? false}
       isSOSMessage={isSOS}
       isSystemMessage={isSystem}
       isAnnouncementMessage={isAnnouncement}

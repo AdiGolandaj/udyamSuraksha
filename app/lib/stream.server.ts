@@ -55,21 +55,35 @@ export async function createLocalMSMEChannel(params: {
 }
 
 /**
+ * Ensure a Stream channel exists with the correct members.
+ * All group types use "messaging" channel type for consistent permissions.
+ * Safe to call repeatedly — create() is idempotent for the same type+id.
+ */
+export async function ensureStreamChannel(params: {
+  channelId: string;
+  memberIds: string[];
+  name: string;
+  groupType: string;
+  createdByUserId: string;
+}): Promise<void> {
+  const channel = serverClient.channel("messaging", params.channelId, {
+    name: params.name,
+    created_by_id: params.createdByUserId,
+    channelType: params.groupType,
+    members: params.memberIds,
+  });
+  await channel.create();
+}
+
+/**
  * Add a user to an existing channel
  */
 export async function addUserToChannel(
   channelId: string,
   userId: string
 ): Promise<void> {
-  const channel = serverClient.channel(
-    "messaging",
-    channelId.startsWith("lrdb-") ? undefined : "messaging"
-  );
-  const actualChannel = serverClient.channel(
-    channelId.startsWith("lrdb-") ? "team" : "messaging",
-    channelId
-  );
-  await actualChannel.addMembers([userId]);
+  const channel = serverClient.channel("messaging", channelId);
+  await channel.addMembers([userId]);
 }
 
 /**

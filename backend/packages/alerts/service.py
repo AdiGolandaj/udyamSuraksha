@@ -15,6 +15,7 @@ from packages.core.config import settings
 from packages.core.logger import setup_logger
 from packages.core.llm_client import llm_client
 from packages.core.database import SessionLocal
+from packages.core.email import send_alert_email
 from .meteosource import fetch_current_weather, exceeds_flood_threshold, exceeds_wind_threshold
 from .schemas import AlertGenerateRequest, AlertGenerationResponse, AlertResponse
 
@@ -49,6 +50,10 @@ _STOCK_SQL = text("""
     LIMIT 15
 """)
 
+_USER_SQL = text("""
+    SELECT email, name FROM users WHERE id = :user_id
+""")
+
 _REGION_SHOPS_SQL = text("""
     SELECT id, userId, shopName, category, latitude, longitude, regionCode
     FROM shop_profiles
@@ -64,11 +69,14 @@ _REGIONS_SQL = text("""
 """)
 
 _ACTIVE_ALERTS_SQL = text("""
-    SELECT a.id, a.title, a.severity, a.category, a.summary, a.createdAt
+    SELECT a.id, a.title, a.severity, a.category, a.summary, a.createdAt,
+           GROUP_CONCAT(aa.label ORDER BY aa.orderIndex SEPARATOR '|||') AS action_steps
     FROM alerts a
     JOIN alert_recipients ar ON a.id = ar.alertId
+    LEFT JOIN alert_actions aa ON a.id = aa.alertId
     WHERE ar.userId = :user_id
       AND a.isActive = true
+    GROUP BY a.id, a.title, a.severity, a.category, a.summary, a.createdAt
     ORDER BY a.createdAt DESC
     LIMIT 50
 """)
@@ -130,10 +138,10 @@ Shop: {shop.shopName} ({shop.category}) | {shop.district}, {shop.taluka}
 Elevation: {loc.elevationMetres or 'unknown'} m | Terrain: {loc.terrainType or 'unknown'}
 {water_info}
 
-Current weather:
-  Rainfall: {weather['rainfall_mm_per_hour']} mm/hr (alert threshold: {settings.ALERT_RAIN_THRESHOLD_MM} mm/hr)
-  Wind speed: {weather['wind_speed_kmph']} km/h (threshold: {settings.ALERT_WIND_THRESHOLD_KMPH} km/h)
-  Temperature: {weather['temperature_c']}°C | Humidity: {weather['humidity_percent']}%
+Current weather: {weather['summary']}
+  Rainfall: {weather['rainfall_mm_per_hour']} mm/hr ({weather['rainfall_type']}) — alert threshold: {settings.ALERT_RAIN_THRESHOLD_MM} mm/hr
+  Wind: {weather['wind_speed_kmph']} km/h from {weather['wind_direction']} — threshold: {settings.ALERT_WIND_THRESHOLD_KMPH} km/h
+  Temperature: {weather['temperature_c']}°C | Cloud cover: {weather['cloud_cover_percent']}%
 
 Triggered by: {trigger}
 
@@ -156,12 +164,8 @@ Generate a hyper-local disaster alert for this specific shop. Respond ONLY with 
 def _write_alert(db: Session, llm_data: dict, user_id: str, region_code: str) -> str:
     alert_id = str(uuid.uuid4())
     expires = datetime.utcnow() + timedelta(hours=24)
-    # Store the full LLM payload in summary so it can be round-tripped on fetch
-    summary_json = json.dumps({
-        "summary": llm_data.get("summary", ""),
-        "affectedItems": llm_data.get("affectedItems", []),
-        "actionSteps": llm_data.get("actionSteps", []),
-    })
+
+    # Store plain text summary (not a JSON blob)
     db.execute(text("""
         INSERT INTO alerts
             (id, title, severity, category, summary, affectedRegions, isActive, expiresAt, createdAt, updatedAt)
@@ -169,17 +173,50 @@ def _write_alert(db: Session, llm_data: dict, user_id: str, region_code: str) ->
             (:id, :title, :severity, :category, :summary, :regions, true, :exp, NOW(), NOW())
     """), {
         "id": alert_id,
-        "title": llm_data.get("title", "Disaster Alert")[:255],
+        "title": str(llm_data.get("title", "Disaster Alert"))[:255],
         "severity": _clean_severity(llm_data.get("severity", "MEDIUM")),
         "category": _clean_category(llm_data.get("category", "OTHER")),
-        "summary": summary_json,
+        "summary": str(llm_data.get("summary", ""))[:2000],
         "regions": region_code,
         "exp": expires,
     })
+
+    # Write each action step into alert_actions (its dedicated table)
+    action_steps = llm_data.get("actionSteps") or []
+    action_ids = []
+    for idx, step in enumerate(action_steps[:10]):
+        action_id = str(uuid.uuid4())
+        action_ids.append(action_id)
+        db.execute(text("""
+            INSERT INTO alert_actions (id, alertId, label, actionType, orderIndex)
+            VALUES (:id, :alertId, :label, :actionType, :idx)
+        """), {
+            "id": action_id,
+            "alertId": alert_id,
+            "label": str(step)[:500],
+            "actionType": "manual",
+            "idx": idx,
+        })
+
+    # Create the recipient record
+    recipient_id = str(uuid.uuid4())
     db.execute(text("""
-        INSERT IGNORE INTO alert_recipients (id, alertId, userId, isRead)
+        INSERT INTO alert_recipients (id, alertId, userId, isRead)
         VALUES (:id, :alertId, :userId, false)
-    """), {"id": str(uuid.uuid4()), "alertId": alert_id, "userId": user_id})
+    """), {"id": recipient_id, "alertId": alert_id, "userId": user_id})
+
+    # Create an AlertActionResult for each action × this recipient so the
+    # frontend checklist can track completion state
+    for action_id in action_ids:
+        db.execute(text("""
+            INSERT INTO alert_action_results (id, alertActionId, alertRecipientId, isCompleted)
+            VALUES (:id, :actionId, :recipientId, false)
+        """), {
+            "id": str(uuid.uuid4()),
+            "actionId": action_id,
+            "recipientId": recipient_id,
+        })
+
     db.commit()
     return alert_id
 
@@ -189,6 +226,7 @@ def _write_alert(db: Session, llm_data: dict, user_id: str, region_code: str) ->
 async def generate_alert_for_shop(
     request: AlertGenerateRequest,
     db: Session,
+    prefetched_weather: dict | None = None,
 ) -> AlertGenerationResponse:
     shop, loc, stock = _fetch_context(db, request.shop_id)
     if not shop:
@@ -199,7 +237,9 @@ async def generate_alert_for_shop(
 
     lat = shop.latitude or 0.0
     lng = shop.longitude or 0.0
-    weather = await fetch_current_weather(lat, lng)
+    # Use the region-level weather if already fetched; only call Meteosource
+    # per-shop when triggered directly via the API endpoint (not from the batch)
+    weather = prefetched_weather or await fetch_current_weather(lat, lng)
 
     flood = exceeds_flood_threshold(weather)
     wind = exceeds_wind_threshold(weather)
@@ -208,7 +248,7 @@ async def generate_alert_for_shop(
         return AlertGenerationResponse(
             alert_id="", shop_id=request.shop_id,
             status="skipped",
-            message=f"No threshold exceeded (rain={weather['rainfall_mm_per_hour']} mm/hr, wind={weather['wind_speed_kmph']} km/h)",
+            message=f"No threshold exceeded — rain={weather['rainfall_mm_per_hour']} mm/hr, wind={weather['wind_speed_kmph']} km/h, conditions: {weather['summary']}",
         )
 
     trigger = ", ".join(filter(None, [
@@ -245,6 +285,29 @@ async def generate_alert_for_shop(
         logger.error("DB write failed for alert: %s", exc)
         alert_id = ""
 
+    # Send email notification (best-effort; never blocks the response)
+    if alert_id:
+        try:
+            user_row = db.execute(_USER_SQL, {"user_id": request.user_id}).fetchone()
+            if user_row and user_row.email:
+                await send_alert_email(
+                    to_email=user_row.email,
+                    recipient_name=user_row.name,
+                    shop_name=shop.shopName,
+                    district=shop.district or "",
+                    alert_id=alert_id,
+                    alert_title=llm_data.get("title", "Disaster Alert"),
+                    severity=_clean_severity(llm_data.get("severity", "MEDIUM")),
+                    category=_clean_category(llm_data.get("category", "OTHER")),
+                    summary=str(llm_data.get("summary", "")),
+                    weather=weather,
+                    action_steps=llm_data.get("actionSteps") or [],
+                    affected_items=llm_data.get("affectedItems") or [],
+                    user_id=request.user_id,
+                )
+        except Exception as exc:
+            logger.error("Email dispatch failed for alert %s: %s", alert_id, exc)
+
     return AlertGenerationResponse(
         alert_id=alert_id,
         shop_id=request.shop_id,
@@ -257,18 +320,15 @@ async def get_active_alerts_for_user(user_id: str, db: Session) -> List[AlertRes
     rows = db.execute(_ACTIVE_ALERTS_SQL, {"user_id": user_id}).fetchall()
     results = []
     for row in rows:
-        try:
-            payload = json.loads(row.summary)
-        except (json.JSONDecodeError, TypeError):
-            payload = {"summary": row.summary or "", "affectedItems": [], "actionSteps": []}
+        action_steps = [s for s in (row.action_steps or "").split("|||") if s]
         results.append(AlertResponse(
             alertId=row.id,
             title=row.title,
             severity=row.severity,
             category=row.category,
-            summary=payload.get("summary", ""),
-            affectedItems=payload.get("affectedItems", []),
-            actionSteps=payload.get("actionSteps", []),
+            summary=row.summary or "",
+            affectedItems=[],
+            actionSteps=action_steps,
             issuedAt=row.createdAt.isoformat() if row.createdAt else "",
         ))
     return results
@@ -290,6 +350,8 @@ async def run_regional_alert_batch() -> None:
 
         for region in regions:
             try:
+                # One Meteosource call per region — passed down to each shop,
+                # eliminating N redundant calls for N shops in the same region
                 weather = await fetch_current_weather(region.lat, region.lng)
                 if not exceeds_flood_threshold(weather) and not exceeds_wind_threshold(weather):
                     continue
@@ -302,7 +364,7 @@ async def run_regional_alert_batch() -> None:
                             user_id=shop.userId,
                             region_code=shop.regionCode,
                         )
-                        result = await generate_alert_for_shop(req, db)
+                        result = await generate_alert_for_shop(req, db, prefetched_weather=weather)
                         if result.status == "triggered":
                             ok += 1
                         else:

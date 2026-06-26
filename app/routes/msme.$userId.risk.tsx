@@ -23,7 +23,7 @@ import {
 import { Button } from '~/components/ui/button'
 import { Progress } from '~/components/ui/progress'
 import { useTranslation } from '~/hooks/useTranslation'
-import { BarChart, Bar, RadarChart, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
+import { BarChart, Bar, LineChart, Line, RadarChart, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 import { RefreshCw, TrendingUp, MapPin, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -33,6 +33,20 @@ interface RiskSuggestionItem {
   description: string
   impactScore: number
   isActioned: boolean
+}
+
+interface LocationRisk {
+  lat: number
+  lng: number
+  elevationMetres: number | null
+  terrainType: string | null
+  nearestWaterBodyName: string | null
+  nearestWaterBodyDistanceMetres: number | null
+  nearestReservoirName: string | null
+  nearestReservoirDistanceKm: number | null
+  nearestLRDBCentreName: string | null
+  nearestLRDBCentreDistanceKm: number | null
+  nearestHospitalDistanceKm: number | null
 }
 
 interface RiskProfileLoaderData {
@@ -50,9 +64,11 @@ interface RiskProfileLoaderData {
     percentileBetterThan: number
   }
   suggestions: RiskSuggestionItem[]
-  floodIncidents: Array<{
-    date: string
-    count: number
+  location: LocationRisk | null
+  riskTrends: Array<{
+    month: string
+    rainfall: number
+    floodIncidents: number
   }>
 }
 
@@ -121,18 +137,39 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         ? Math.round((betterThanCount / allRegionRisks.length) * 100)
         : 0
 
-    // Fetch flood incidents for the last 12 months
+    // Fetch 12-month trend data (rainfall + flood incidents) in parallel
     const twelveMonthsAgo = new Date()
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
 
-    const floodIncidents = await db.trendDataPoint.findMany({
-      where: {
-        regionCode,
-        trendType: 'flood_incident',
-        recordedAt: { gte: twelveMonthsAgo },
-      },
-      orderBy: { recordedAt: 'asc' },
+    const [rainfallPoints, floodPoints] = await Promise.all([
+      db.trendDataPoint.findMany({
+        where: { regionCode, trendType: 'rainfall', recordedAt: { gte: twelveMonthsAgo } },
+        orderBy: { recordedAt: 'asc' },
+      }),
+      db.trendDataPoint.findMany({
+        where: { regionCode, trendType: 'flood_incident', recordedAt: { gte: twelveMonthsAgo } },
+        orderBy: { recordedAt: 'asc' },
+      }),
+    ])
+
+    // Merge by month label for the dual-metric chart
+    const trendMap = new Map<string, { rainfall: number; floodIncidents: number }>()
+    rainfallPoints.forEach(p => {
+      const month = format(p.recordedAt, 'MMM yy')
+      const entry = trendMap.get(month) ?? { rainfall: 0, floodIncidents: 0 }
+      entry.rainfall = p.value
+      trendMap.set(month, entry)
     })
+    floodPoints.forEach(p => {
+      const month = format(p.recordedAt, 'MMM yy')
+      const entry = trendMap.get(month) ?? { rainfall: 0, floodIncidents: 0 }
+      entry.floodIncidents = p.value
+      trendMap.set(month, entry)
+    })
+    const riskTrends = Array.from(trendMap.entries()).map(([month, vals]) => ({
+      month,
+      ...vals,
+    }))
 
     const loaderData: RiskProfileLoaderData = {
       userId: user.id,
@@ -155,10 +192,22 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         impactScore: s.impactScore,
         isActioned: s.isActioned,
       })),
-      floodIncidents: floodIncidents.map(fi => ({
-        date: format(fi.recordedAt, 'MMM'),
-        count: fi.value,
-      })),
+      location: locationProfile
+        ? {
+            lat: locationProfile.latitude,
+            lng: locationProfile.longitude,
+            elevationMetres: locationProfile.elevationMetres,
+            terrainType: locationProfile.terrainType,
+            nearestWaterBodyName: locationProfile.nearestWaterBodyName,
+            nearestWaterBodyDistanceMetres: locationProfile.nearestWaterBodyDistanceMetres,
+            nearestReservoirName: locationProfile.nearestReservoirName,
+            nearestReservoirDistanceKm: locationProfile.nearestReservoirDistanceKm,
+            nearestLRDBCentreName: locationProfile.nearestLRDBCentreName,
+            nearestLRDBCentreDistanceKm: locationProfile.nearestLRDBCentreDistanceKm,
+            nearestHospitalDistanceKm: locationProfile.nearestHospitalDistanceKm,
+          }
+        : null,
+      riskTrends,
     }
 
     return json(loaderData)
@@ -463,22 +512,126 @@ export default function RiskProfilePage() {
 
       {/* Location Risk Map */}
       <SectionCard title="Your Location Risk">
-        <div className="rounded-lg bg-muted p-8 text-center">
-          <MapPin className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Leaflet map integration — shows shop location, flood zones, and nearest LRDB office
-          </p>
-        </div>
+        {data.location ? (
+          <div className="space-y-4">
+            <iframe
+              title="Shop location"
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${data.location.lng - 0.012},${data.location.lat - 0.012},${data.location.lng + 0.012},${data.location.lat + 0.012}&layer=mapnik&marker=${data.location.lat},${data.location.lng}`}
+              className="w-full rounded-lg border"
+              style={{ height: 280 }}
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              {data.location.elevationMetres != null && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Elevation</p>
+                  <p className="font-semibold">{data.location.elevationMetres} m</p>
+                </div>
+              )}
+              {data.location.terrainType && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Terrain</p>
+                  <p className="font-semibold capitalize">{data.location.terrainType.toLowerCase().replace(/_/g, ' ')}</p>
+                </div>
+              )}
+              {data.location.nearestWaterBodyName && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Nearest Water Body</p>
+                  <p className="font-semibold">{data.location.nearestWaterBodyName}</p>
+                  {data.location.nearestWaterBodyDistanceMetres != null && (
+                    <p className="text-xs text-muted-foreground">{Math.round(data.location.nearestWaterBodyDistanceMetres)} m away</p>
+                  )}
+                </div>
+              )}
+              {data.location.nearestReservoirName && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Nearest Reservoir</p>
+                  <p className="font-semibold">{data.location.nearestReservoirName}</p>
+                  {data.location.nearestReservoirDistanceKm != null && (
+                    <p className="text-xs text-muted-foreground">{data.location.nearestReservoirDistanceKm.toFixed(1)} km away</p>
+                  )}
+                </div>
+              )}
+              {data.location.nearestLRDBCentreName && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">LRDB Centre</p>
+                  <p className="font-semibold">{data.location.nearestLRDBCentreName}</p>
+                  {data.location.nearestLRDBCentreDistanceKm != null && (
+                    <p className="text-xs text-muted-foreground">{data.location.nearestLRDBCentreDistanceKm.toFixed(1)} km away</p>
+                  )}
+                </div>
+              )}
+              {data.location.nearestHospitalDistanceKm != null && (
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Nearest Hospital</p>
+                  <p className="font-semibold">{data.location.nearestHospitalDistanceKm.toFixed(1)} km away</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-muted p-8 text-center">
+            <MapPin className="mx-auto h-12 w-12 text-muted-foreground" />
+            <p className="mt-4 text-sm text-muted-foreground">Location profile not yet generated</p>
+          </div>
+        )}
       </SectionCard>
 
-      {/* Historical Risk Trend */}
+      {/* Regional Risk Conditions (drives the risk score) */}
       <SectionCard title="Risk Score Over Time">
-        <div className="rounded-lg bg-muted p-8 text-center">
-          <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Risk history tracking starts today. Monthly snapshots will appear here.
-          </p>
-        </div>
+        {data.riskTrends.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Regional conditions over the past 12 months — these drive your risk score
+            </p>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={data.riskTrends} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="rainfall"
+                  name="Rainfall (mm)"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="floodIncidents"
+                  name="Flood Incidents"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              No regional trend data yet. Showing current risk sub-scores.
+            </p>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={riskCategories}
+                layout="vertical"
+                margin={{ top: 0, right: 24, left: 16, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={60} />
+                <Tooltip formatter={(v: number) => [`${v}/100`, 'Score']} />
+                <Bar dataKey="score" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </SectionCard>
     </div>
   )

@@ -26,6 +26,7 @@ export interface AlertCardProps {
   isExpanded?: boolean
   language?: 'en' | 'mr' | 'hi'
   onActionClick?: (actionType: string) => void
+  onViewDetails?: () => void
   href?: string
 }
 
@@ -55,6 +56,7 @@ export function AlertCard({
   isRead = true,
   isExpanded = false,
   onActionClick,
+  onViewDetails,
   href,
 }: AlertCardProps) {
   const [open, setOpen] = React.useState(isExpanded)
@@ -132,6 +134,17 @@ export function AlertCard({
                       {action.label}
                     </Button>
                   ))}
+                </div>
+              )}
+
+              {onViewDetails && (
+                <div className="pt-2 border-t border-border-default">
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onViewDetails() }}
+                  >
+                    View Full Alert →
+                  </Button>
                 </div>
               )}
             </div>

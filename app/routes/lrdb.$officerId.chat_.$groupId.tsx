@@ -6,12 +6,12 @@ import {
   useNavigate,
   useFetcher,
 } from "@remix-run/react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Phone, Video } from "lucide-react";
 
 import { requireRole } from "~/lib/auth.server";
 import { db } from "~/lib/db.server";
-import { generateStreamToken } from "~/lib/stream.server";
+import { generateStreamToken, ensureStreamChannel } from "~/lib/stream.server";
 
 import { StreamClientProvider } from "~/components/shared/chat/StreamClientProvider";
 import { ChatLayout } from "~/components/shared/chat/ChatLayout";
@@ -19,11 +19,57 @@ import { ChatSidebar } from "~/components/shared/chat/ChatSidebar";
 import { ChatThread } from "~/components/shared/chat/ChatThread";
 import { VideoCallModal } from "~/components/shared/chat/VideoCallModal";
 import { SOSActivePanel } from "~/components/shared/chat/SOSActivePanel"
+import { Channel, useChatContext } from "stream-chat-react";
 
 import { LoadingSkeleton } from "~/components/shared/feedback/LoadingSkeleton";
 import { ErrorCard } from "~/components/shared/feedback/ErrorCard";
 import { useTranslation } from "~/hooks/useTranslation";
 import type { MetaFunction } from "@remix-run/node";
+
+// All group types use "messaging" channel type — most permissive default
+// permissions. "team" and "livestream" types have stricter caps that block
+// markRead/sendMessage for non-admin users in default Stream app config.
+const GROUP_TYPE_TO_CHANNEL_TYPE: Record<string, string> = {
+  LOCAL_MSME: "messaging",
+  LRDB_COORDINATION: "messaging",
+  SOS_EMERGENCY: "messaging",
+  DIRECT_MESSAGE: "messaging",
+};
+
+function ActiveChannel({
+  streamChannelId,
+  groupType,
+  children,
+}: {
+  streamChannelId: string;
+  groupType: string;
+  children: React.ReactNode;
+}) {
+  const { client } = useChatContext();
+  const [activeChannel, setActiveChannel] = useState<any>(null);
+
+  useEffect(() => {
+    if (!client || !streamChannelId) return;
+    const channelType = GROUP_TYPE_TO_CHANNEL_TYPE[groupType] ?? "messaging";
+    const ch = client.channel(channelType, streamChannelId);
+    ch.watch().then(() => setActiveChannel(ch)).catch(console.error);
+    return () => {
+      ch.stopWatching().catch(console.error);
+    };
+  }, [client, streamChannelId, groupType]);
+
+  if (!activeChannel) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="animate-pulse text-sm text-text-secondary">
+          Loading messages...
+        </div>
+      </div>
+    );
+  }
+
+  return <Channel channel={activeChannel}>{children}</Channel>;
+}
 
 export const meta: MetaFunction = ({ data }: any) => [
   {
@@ -106,11 +152,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       where: { id: groupId },
       include: {
         labels: {
-          select: {
-            id: true,
-            label: true,
-          },
+          select: { id: true, label: true },
         },
+        members: { select: { userId: true } },
         _count: { select: { members: true } },
       },
     });
@@ -120,16 +164,21 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     // Check if officer is member of this group
-    const isMember = await db.chatGroupMember.findFirst({
-      where: {
-        chatGroupId: groupId,
-        userId: officer.id,
-      },
-    });
+    const isMember = chatGroup.members.some((m) => m.userId === officer.id);
 
     if (!isMember) {
       throw new Response("Unauthorized", { status: 403 });
     }
+
+    // Ensure the Stream channel exists with all DB members before the client tries to watch it.
+    const memberIds = chatGroup.members.map((m) => m.userId);
+    await ensureStreamChannel({
+      channelId: chatGroup.streamChannelId,
+      memberIds: memberIds.length ? memberIds : [officer.id],
+      name: chatGroup.name,
+      groupType: chatGroup.groupType,
+      createdByUserId: chatGroup.createdByUserId ?? officer.id,
+    }).catch((err) => console.error("Failed to ensure Stream channel:", err));
 
     // Generate Stream token server-side
     const streamToken = await generateStreamToken(officer.id);
@@ -248,18 +297,23 @@ export default function LRDBChatThreadPage() {
           onGroupSelect={handleGroupSelect}
         />
 
-        {/* Right panel — chat thread */}
+        {/* Right panel — chat thread (ActiveChannel provides Channel context for stream hooks) */}
         <div className="flex flex-1">
           <div className="flex-1 flex flex-col">
-            <ChatThread
-              groupId={groupId}
-              groupName={chatGroup.name}
-              role="lrdb"
-              userId={officer.id}
+            <ActiveChannel
+              streamChannelId={chatGroup.streamChannelId}
               groupType={chatGroup.groupType}
-              onVoiceCall={handleVoiceCall}
-              onVideoCall={handleVideoCall}
-            />
+            >
+              <ChatThread
+                groupId={groupId}
+                groupName={chatGroup.name}
+                role="lrdb"
+                userId={officer.id}
+                groupType={chatGroup.groupType}
+                onVoiceCall={handleVoiceCall}
+                onVideoCall={handleVideoCall}
+              />
+            </ActiveChannel>
           </div>
 
           {/* SOS Active Panel (right side, desktop only) */}

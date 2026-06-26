@@ -19,7 +19,9 @@
     "something_went_wrong": "कुछ गलत हो गया",
     "members": "सदस्य",
     "sending": "भेज रहे हैं...",
-    "retry": "फिर से प्रयास करें"
+    "retry": "फिर से प्रयास करें",
+    "search": "खोजें",
+    "clear-all": "सभी हटाएं"
   },
   "auth": {
     "login_page": {
@@ -300,5 +302,53 @@
     "addItemDialog": {
       "title": "स्टॉक आइटम जोड़ें"
     }
+  },
+  "chat": {
+    "title": "सामुदायिक चैट",
+    "select-group-title": "एक समूह चुनें",
+    "select-group-description": "चैट शुरू करने के लिए बाईं ओर से एक सामुदायिक समूह चुनें",
+    "error-title": "चैट उपलब्ध नहीं",
+    "error-message": "चैट सेवा से कनेक्ट नहीं हो सका। कृपया पुनः प्रयास करें।",
+    "sos-sent-title": "🚨 SOS भेजा गया",
+    "sos-sent-message": "LRDB और पास के व्यवसायों को सतर्क कर दिया गया है। जल्द ही सहायता मिलेगी।",
+    "sos-confirm-title": "आपातकालीन SOS भेजें?",
+    "sos-confirm-message": "यह सभी पास के व्यवसायों और आपके LRDB अधिकारी को तुरंत सतर्क करेगा। केवल वास्तविक आपातकाल में उपयोग करें।",
+    "send-sos": "SOS भेजें",
+    "sos-active": "SOS सक्रिय",
+    "sos-alert": "SOS अलर्ट",
+    "sos-cooldown": "SOS प्रतीक्षा समय",
+    "sos-emergency": "SOS आपातकाल",
+    "new-group": "नया समूह",
+    "all-groups": "सभी समूह",
+    "no-groups": "कोई समूह उपलब्ध नहीं",
+    "no-groups-found": "कोई समूह नहीं मिला",
+    "lrdb-group": "LRDB समन्वय",
+    "local-msme": "स्थानीय व्यवसाय समूह",
+    "direct-message": "सीधा संदेश",
+    "official-announcement": "आधिकारिक घोषणा",
+    "filter-by-label": "लेबल से फ़िल्टर करें",
+    "load-older": "पुराने संदेश लोड करें",
+    "message-placeholder": "यहाँ अपना संदेश टाइप करें...",
+    "location-shared": "स्थान साझा किया",
+    "from": "से",
+    "participant": "प्रतिभागी",
+    "participants": "प्रतिभागी",
+    "unavailable": "चैट उपलब्ध नहीं",
+    "connection-error": "चैट सेवा से कनेक्ट नहीं हो सका",
+    "voice-call": "वॉयस कॉल शुरू करें",
+    "video-call": "वीडियो कॉल शुरू करें",
+    "incoming-voice-call": "इनकमिंग वॉयस कॉल",
+    "incoming-video-call": "इनकमिंग वीडियो कॉल",
+    "in-call": "कॉल में",
+    "connecting": "कनेक्ट हो रहा है...",
+    "call-connection-failed": "कॉल कनेक्शन विफल",
+    "join": "शामिल हों",
+    "decline": "अस्वीकार करें",
+    "mute": "म्यूट करें",
+    "unmute": "अनम्यूट करें",
+    "leave-call": "कॉल छोड़ें",
+    "screen-share": "स्क्रीन साझा करें",
+    "turn-on-camera": "कैमरा चालू करें",
+    "turn-off-camera": "कैमरा बंद करें"
   }
 }

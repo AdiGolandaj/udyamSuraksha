@@ -47,6 +47,8 @@ import { RotateCcw, Phone, Share2, Download, PackageOpen, ListChecks, AlertCircl
 interface BCPLoaderData {
   userId: string
   shopId: string
+  shopName: string
+  shopPhoneNumber: string | null
   hasPlan: boolean
   completionPercent: number
   beforeStepsCompleted: number
@@ -114,6 +116,8 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       return json<BCPLoaderData>({
         userId: user.id,
         shopId: shopProfile.id,
+        shopName: shopProfile.shopName,
+        shopPhoneNumber: shopProfile.phoneNumber ?? null,
         hasPlan: false,
         completionPercent: 0,
         beforeStepsCompleted: 0, beforeStepsTotal: 0,
@@ -157,6 +161,8 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     const loaderData: BCPLoaderData = {
       userId: user.id,
       shopId: shopProfile.id,
+      shopName: shopProfile.shopName,
+      shopPhoneNumber: shopProfile.phoneNumber ?? null,
       hasPlan: true,
       completionPercent,
       beforeStepsCompleted: beforeSteps.filter(s => s.isCompleted).length,
@@ -288,6 +294,282 @@ export default function MsmeBCP() {
       { intent: 'regenerate-plan' },
       { method: 'POST' }
     )
+  }
+
+  const handleDownloadPDF = async () => {
+    const { default: jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const marginL = 20
+    const marginR = 20
+    const contentW = pageW - marginL - marginR
+    let y = 20
+
+    const phaseLabels: Record<string, string> = {
+      BEFORE: 'Before Disaster',
+      DURING: 'During Disaster',
+      AFTER: 'After Disaster',
+    }
+
+    const totalSteps = data.beforeStepsTotal + data.duringStepsTotal + data.afterStepsTotal
+    const totalCompleted = data.beforeStepsCompleted + data.duringStepsCompleted + data.afterStepsCompleted
+
+    // ── Helper: check if we need a new page ──
+    const ensureSpace = (needed: number) => {
+      if (y + needed > pageH - 20) {
+        doc.addPage()
+        y = 20
+      }
+    }
+
+    // ── Header ──
+    doc.setFillColor(37, 99, 235) // brand blue
+    doc.rect(0, 0, pageW, 3, 'F')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(22)
+    doc.setTextColor(17, 24, 39)
+    doc.text('Business Continuity Plan', pageW / 2, y, { align: 'center' })
+    y += 8
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(107, 114, 128)
+    doc.text(
+      `${data.shopName}  |  Generated ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+      pageW / 2, y, { align: 'center' }
+    )
+    y += 4
+
+    // divider
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(0.5)
+    doc.line(marginL, y, pageW - marginR, y)
+    y += 8
+
+    // ── Stat cards ──
+    const cardW = (contentW - 8) / 3 // 3 cards with 4mm gaps
+    const stats = [
+      { label: 'OVERALL PROGRESS', value: `${data.completionPercent}%` },
+      { label: 'STEPS COMPLETED', value: `${totalCompleted}/${totalSteps}` },
+      { label: 'EMERGENCY CONTACTS', value: `${data.emergencyContacts.length}` },
+    ]
+
+    stats.forEach((stat, i) => {
+      const x = marginL + i * (cardW + 4)
+      doc.setFillColor(249, 250, 251)
+      doc.setDrawColor(229, 231, 235)
+      doc.roundedRect(x, y, cardW, 22, 2, 2, 'FD')
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+      doc.setTextColor(107, 114, 128)
+      doc.text(stat.label, x + cardW / 2, y + 8, { align: 'center' })
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.setTextColor(17, 24, 39)
+      doc.text(stat.value, x + cardW / 2, y + 18, { align: 'center' })
+    })
+    y += 30
+
+    // ── Phase sections ──
+    data.bcpPhases.forEach(phase => {
+      if (phase.steps.length === 0) return
+
+      const completed = phase.steps.filter(s => s.isCompleted).length
+      const total = phase.steps.length
+
+      ensureSpace(20)
+
+      // Phase heading
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      doc.setTextColor(17, 24, 39)
+      doc.text(phaseLabels[phase.phase] || phase.phase, marginL, y)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(107, 114, 128)
+      const labelW = doc.getTextWidth((phaseLabels[phase.phase] || phase.phase) + '  ')
+      doc.text(`(${completed}/${total} completed)`, marginL + labelW, y)
+      y += 2
+
+      // underline
+      doc.setDrawColor(229, 231, 235)
+      doc.setLineWidth(0.4)
+      doc.line(marginL, y, pageW - marginR, y)
+      y += 6
+
+      // Steps
+      phase.steps.forEach((step, idx) => {
+        // Estimate height: title ~5mm + description wrapping + optional completed line + padding
+        const descLines = doc.splitTextToSize(step.description, contentW - 14) as string[]
+        const stepHeight = 6 + descLines.length * 4 + (step.completedAt ? 5 : 0) + (step.isOptional ? 0 : 0) + 4
+        ensureSpace(stepHeight)
+
+        // Step number circle
+        const circleX = marginL + 4
+        const circleY = y + 1
+        doc.setFillColor(step.isCompleted ? 22 : 107, step.isCompleted ? 163 : 114, step.isCompleted ? 74 : 128)
+        doc.circle(circleX, circleY, 3, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(7)
+        doc.setTextColor(255, 255, 255)
+        doc.text(`${idx + 1}`, circleX, circleY + 1, { align: 'center' })
+
+        // Title
+        const textX = marginL + 12
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(17, 24, 39)
+        const checkMark = step.isCompleted ? '[done] ' : '[ ] '
+        const titleText = `${checkMark}${step.title}${step.isOptional ? '  (Optional)' : ''}`
+        doc.text(titleText, textX, y + 2)
+        y += 6
+
+        // Description (wrapped)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(107, 114, 128)
+        descLines.forEach((line: string) => {
+          ensureSpace(5)
+          doc.text(line, textX, y)
+          y += 4
+        })
+
+        // Completed date
+        if (step.completedAt) {
+          doc.setFontSize(8)
+          doc.setTextColor(22, 163, 74)
+          doc.text(`Completed: ${new Date(step.completedAt).toLocaleDateString('en-IN')}`, textX, y)
+          y += 4
+        }
+
+        y += 3
+      })
+
+      y += 4
+    })
+
+    // ── Emergency Contacts ──
+    ensureSpace(20)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.setTextColor(17, 24, 39)
+    doc.text('Emergency Contacts', marginL, y)
+    y += 2
+    doc.setDrawColor(229, 231, 235)
+    doc.line(marginL, y, pageW - marginR, y)
+    y += 6
+
+    if (data.emergencyContacts.length === 0) {
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(10)
+      doc.setTextColor(156, 163, 175)
+      doc.text('No emergency contacts configured.', marginL, y)
+      y += 8
+    } else {
+      // Table header
+      doc.setFillColor(249, 250, 251)
+      doc.rect(marginL, y - 3, contentW, 7, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(107, 114, 128)
+      doc.text('NAME', marginL + 2, y + 1)
+      doc.text('RELATIONSHIP', marginL + 60, y + 1)
+      doc.text('PHONE', marginL + 110, y + 1)
+      doc.text('PRIMARY', marginL + 145, y + 1)
+      y += 8
+
+      data.emergencyContacts.forEach(contact => {
+        ensureSpace(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(17, 24, 39)
+        doc.text(contact.name, marginL + 2, y)
+        doc.setTextColor(107, 114, 128)
+        doc.text(contact.relationship, marginL + 60, y)
+        doc.setTextColor(17, 24, 39)
+        doc.text(contact.phone, marginL + 110, y)
+        doc.text(contact.isPrimary ? 'Yes' : '', marginL + 145, y)
+        y += 6
+      })
+    }
+
+    // ── Footer ──
+    const footerY = pageH - 10
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(0.3)
+    doc.line(marginL, footerY - 4, pageW - marginR, footerY - 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(156, 163, 175)
+    doc.text(
+      `Generated by DisasterShield on ${new Date().toLocaleString('en-IN')}`,
+      pageW / 2, footerY, { align: 'center' }
+    )
+
+    doc.save(`BCP-Plan-${new Date().toISOString().split('T')[0]}.pdf`)
+  }
+
+  const handleShareWhatsApp = () => {
+    const totalSteps = data.beforeStepsTotal + data.duringStepsTotal + data.afterStepsTotal
+    const totalCompleted = data.beforeStepsCompleted + data.duringStepsCompleted + data.afterStepsCompleted
+
+    const phaseLabels: Record<string, string> = {
+      BEFORE: '📋 Before Disaster',
+      DURING: '⚠️ During Disaster',
+      AFTER: '🔄 After Disaster',
+    }
+
+    const phaseSummaries = data.bcpPhases
+      .map(phase => {
+        if (phase.steps.length === 0) return ''
+        const completed = phase.steps.filter(s => s.isCompleted).length
+        const lines = phase.steps
+          .map((step, idx) => `  ${step.isCompleted ? '✅' : '☐'} ${idx + 1}. ${step.title}`)
+          .join('\n')
+        return `${phaseLabels[phase.phase]} (${completed}/${phase.steps.length})\n${lines}`
+      })
+      .filter(Boolean)
+      .join('\n\n')
+
+    const contactLines = data.emergencyContacts.length > 0
+      ? data.emergencyContacts
+          .map(c => `  • ${c.name} (${c.relationship}): ${c.phone}${c.isPrimary ? ' ⭐' : ''}`)
+          .join('\n')
+      : '  No contacts configured'
+
+    const message = [
+      `🛡️ *Business Continuity Plan*`,
+      `📍 ${data.shopName}`,
+      `📊 Progress: ${data.completionPercent}% (${totalCompleted}/${totalSteps} steps)`,
+      `📅 Shared on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+      '',
+      phaseSummaries,
+      '',
+      `📞 *Emergency Contacts*`,
+      contactLines,
+      '',
+      `— Sent from DisasterShield`,
+    ].join('\n')
+
+    // Clean the phone number: remove spaces, dashes, and ensure country code
+    let phone = (data.shopPhoneNumber || '').replace(/[\s\-()]/g, '')
+    if (phone && !phone.startsWith('+')) {
+      // Assume Indian number if no country code
+      phone = phone.startsWith('91') ? `+${phone}` : `+91${phone}`
+    }
+
+    const encodedMessage = encodeURIComponent(message)
+    const whatsappUrl = phone
+      ? `https://wa.me/${phone.replace('+', '')}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`
+
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
   }
 
   if (!data.hasPlan) {
@@ -457,11 +739,11 @@ export default function MsmeBCP() {
       {/* Share / Download */}
       <SectionCard title="Share Your Plan">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleDownloadPDF}>
             <Download className="w-4 h-4" />
             Download as PDF
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleShareWhatsApp}>
             <Share2 className="w-4 h-4" />
             Share via WhatsApp
           </Button>

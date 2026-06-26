@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useParams, useNavigate, useFetcher } from "@remix-run/react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 import { requireUser } from "~/lib/auth.server";
 import { db } from "~/lib/db.server";
@@ -10,6 +10,7 @@ import {
   createSOSChannel,
   sendChannelMessage,
   addUserToChannel,
+  ensureStreamChannel,
 } from "~/lib/stream.server";
 import { sendBroadcastMail } from "~/lib/mail.server";
 import { apiClient } from "~/lib/api.server";
@@ -21,6 +22,72 @@ import { ChatThread } from "~/components/shared/chat/ChatThread";
 import { VideoCallModal } from "~/components/shared/chat/VideoCallModal";
 import { NotificationBanner } from "~/components/shared/feedback/NotificationBanner";
 import { useTranslation } from "~/hooks/useTranslation";
+import { Channel, useChatContext } from "stream-chat-react";
+
+// All group types use "messaging" channel type — most permissive default
+// permissions. "team" and "livestream" types have stricter caps that block
+// markRead/sendMessage for non-admin users in default Stream app config.
+const GROUP_TYPE_TO_CHANNEL_TYPE: Record<string, string> = {
+  LOCAL_MSME: "messaging",
+  LRDB_COORDINATION: "messaging",
+  SOS_EMERGENCY: "messaging",
+  DIRECT_MESSAGE: "messaging",
+};
+
+function ActiveChannel({
+  streamChannelId,
+  groupType,
+  children,
+}: {
+  streamChannelId: string;
+  groupType: string;
+  children: React.ReactNode;
+}) {
+  const { client } = useChatContext();
+  const [activeChannel, setActiveChannel] = useState<any>(null);
+
+  useEffect(() => {
+    if (!client || !streamChannelId) {
+      console.log('[ActiveChannel] Skipping watch — missing client or channelId', { hasClient: !!client, streamChannelId })
+      return
+    }
+    const channelType = GROUP_TYPE_TO_CHANNEL_TYPE[groupType] ?? "messaging";
+    console.log('[ActiveChannel] Watching channel', { channelType, streamChannelId, clientUserId: client.userID })
+    const ch = client.channel(channelType, streamChannelId);
+    ch.watch()
+      .then(() => {
+        const chData = ch.data as any;
+        console.log('[ActiveChannel] Channel watched successfully', {
+          streamChannelId,
+          channelName: chData?.name,
+          memberCount: chData?.member_count,
+          ownCapabilities: chData?.own_capabilities,
+          members: Object.keys(ch.state?.members || {}),
+          createdBy: chData?.created_by?.id,
+          type: chData?.type,
+        })
+        setActiveChannel(ch)
+      })
+      .catch((err) => {
+        console.error('[ActiveChannel] Failed to watch channel:', err)
+      });
+    return () => {
+      ch.stopWatching().catch(console.error);
+    };
+  }, [client, streamChannelId, groupType]);
+
+  if (!activeChannel) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="animate-pulse text-sm text-text-secondary">
+          Loading messages...
+        </div>
+      </div>
+    );
+  }
+
+  return <Channel channel={activeChannel}>{children}</Channel>;
+}
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   // Verify authentication and MSME role
@@ -68,6 +135,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   if (!isMember) {
     throw redirect(`/msme/${user.id}/chat`);
   }
+
+  // Ensure the Stream channel exists with all DB members before the client tries to watch it.
+  // Non-fatal: a failure here degrades gracefully (client falls back to auto-create on watch()).
+  const memberIds = chatGroup.members.map((m) => m.userId);
+  await ensureStreamChannel({
+    channelId: chatGroup.streamChannelId,
+    memberIds: memberIds.length ? memberIds : [user.id],
+    name: chatGroup.name,
+    groupType: chatGroup.groupType,
+    createdByUserId: chatGroup.createdByUserId ?? user.id,
+  }).catch((err) => console.error("Failed to ensure Stream channel:", err));
 
   // Fetch all chat groups for sidebar
   const chatGroups = await db.chatGroup.findMany({
@@ -321,17 +399,22 @@ export default function MSMEChatThreadPage() {
           onGroupSelect={handleGroupSelect}
         />
 
-        {/* Right panel — chat thread */}
+        {/* Right panel — chat thread (Channel context required for stream hooks) */}
         {groupId && (
-          <ChatThread
-            groupId={groupId}
-            groupName={chatGroup.name}
-            role="msme"
-            userId={user.id}
-            onVoiceCall={() => setCallType("voice")}
-            onVideoCall={() => setCallType("video")}
-            onSendSOS={handleSendSOS}
-          />
+          <ActiveChannel
+            streamChannelId={chatGroup.streamChannelId}
+            groupType={chatGroup.groupType}
+          >
+            <ChatThread
+              groupId={groupId}
+              groupName={chatGroup.name}
+              role="msme"
+              userId={user.id}
+              onVoiceCall={() => setCallType("voice")}
+              onVideoCall={() => setCallType("video")}
+              onSendSOS={handleSendSOS}
+            />
+          </ActiveChannel>
         )}
       </ChatLayout>
 

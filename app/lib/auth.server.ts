@@ -23,6 +23,7 @@ authenticator.use(
       clientID:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       callbackURL:  process.env.GOOGLE_CALLBACK_URL!,
+      prompt:       "select_account",
     },
     async ({ profile }) => {
       const email = profile.emails[0].value;

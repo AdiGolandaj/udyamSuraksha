@@ -19,7 +19,9 @@
     "something_went_wrong": "काहीतरी चूक झाली",
     "members": "सदस्य",
     "sending": "पाठवित आहे...",
-    "retry": "पुन्हा प्रयत्न करा"
+    "retry": "पुन्हा प्रयत्न करा",
+    "search": "शोधा",
+    "clear-all": "सर्व साफ करा"
   },
   "auth": {
     "login_page": {
@@ -300,5 +302,53 @@
     "addItemDialog": {
       "title": "स्टॉक आयटम जोडा"
     }
+  },
+  "chat": {
+    "title": "समुदाय चॅट",
+    "select-group-title": "एक गट निवडा",
+    "select-group-description": "चॅट सुरू करण्यासाठी डावीकडून समुदाय गट निवडा",
+    "error-title": "चॅट उपलब्ध नाही",
+    "error-message": "चॅट सेवेशी कनेक्ट करता आले नाही. कृपया पुन्हा प्रयत्न करा.",
+    "sos-sent-title": "🚨 SOS पाठवले",
+    "sos-sent-message": "LRDB आणि जवळचे व्यवसाय सतर्क केले गेले आहेत. लवकरच मदत मिळेल.",
+    "sos-confirm-title": "आपत्कालीन SOS पाठवायचे?",
+    "sos-confirm-message": "हे सर्व जवळच्या व्यवसायांना आणि तुमच्या LRDB अधिकाऱ्यांना सतर्क करेल. फक्त खऱ्या आपत्कालीन परिस्थितीत वापरा.",
+    "send-sos": "SOS पाठवा",
+    "sos-active": "SOS सक्रिय",
+    "sos-alert": "SOS अलर्ट",
+    "sos-cooldown": "SOS प्रतीक्षा वेळ",
+    "sos-emergency": "SOS आपत्काल",
+    "new-group": "नवीन गट",
+    "all-groups": "सर्व गट",
+    "no-groups": "कोणतेही गट उपलब्ध नाहीत",
+    "no-groups-found": "कोणतेही गट सापडले नाहीत",
+    "lrdb-group": "LRDB समन्वय",
+    "local-msme": "स्थानिक व्यवसाय गट",
+    "direct-message": "थेट संदेश",
+    "official-announcement": "अधिकृत घोषणा",
+    "filter-by-label": "लेबलनुसार फिल्टर करा",
+    "load-older": "जुने संदेश लोड करा",
+    "message-placeholder": "इथे आपला संदेश टाइप करा...",
+    "location-shared": "स्थान शेअर केले",
+    "from": "कडून",
+    "participant": "सहभागी",
+    "participants": "सहभागी",
+    "unavailable": "चॅट उपलब्ध नाही",
+    "connection-error": "चॅट सेवेशी कनेक्ट होण्यात अयशस्वी",
+    "voice-call": "व्हॉइस कॉल सुरू करा",
+    "video-call": "व्हिडिओ कॉल सुरू करा",
+    "incoming-voice-call": "इनकमिंग व्हॉइस कॉल",
+    "incoming-video-call": "इनकमिंग व्हिडिओ कॉल",
+    "in-call": "कॉलमध्ये",
+    "connecting": "कनेक्ट होत आहे...",
+    "call-connection-failed": "कॉल कनेक्शन अयशस्वी",
+    "join": "सामील व्हा",
+    "decline": "नाकारा",
+    "mute": "म्यूट करा",
+    "unmute": "अनम्यूट करा",
+    "leave-call": "कॉल सोडा",
+    "screen-share": "स्क्रीन शेअर करा",
+    "turn-on-camera": "कॅमेरा चालू करा",
+    "turn-off-camera": "कॅमेरा बंद करा"
   }
 }

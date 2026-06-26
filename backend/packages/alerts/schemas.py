@@ -32,6 +32,10 @@ class AlertResponse(BaseSchema):
 class WeatherData(BaseSchema):
     temperature_c: float
     rainfall_mm_per_hour: float
+    rainfall_type: str
     wind_speed_kmph: float
+    wind_angle: int
     wind_direction: str
-    humidity_percent: float
+    cloud_cover_percent: float
+    summary: str
+    icon: str

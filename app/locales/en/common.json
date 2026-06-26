@@ -19,7 +19,9 @@
     "something_went_wrong": "Something went wrong",
     "members": "members",
     "sending": "Sending...",
-    "retry": "Retry"
+    "retry": "Retry",
+    "search": "Search",
+    "clear-all": "Clear All"
   },
   "auth": {
     "login_page": {
@@ -791,5 +793,53 @@
     "addItemDialog": {
       "title": "Add Stock Item"
     }
+  },
+  "chat": {
+    "title": "Community Chat",
+    "select-group-title": "Select a Group",
+    "select-group-description": "Choose a community group from the left to start chatting",
+    "error-title": "Chat Unavailable",
+    "error-message": "Unable to connect to the chat service. Please try again.",
+    "sos-sent-title": "🚨 SOS Sent",
+    "sos-sent-message": "LRDB and nearby businesses have been alerted. You will receive support soon.",
+    "sos-confirm-title": "Send Emergency SOS?",
+    "sos-confirm-message": "This will alert all nearby businesses and your LRDB officer immediately. Only use in a genuine emergency.",
+    "send-sos": "Send SOS",
+    "sos-active": "SOS Active",
+    "sos-alert": "SOS Alert",
+    "sos-cooldown": "SOS on cooldown",
+    "sos-emergency": "SOS Emergency",
+    "new-group": "New Group",
+    "all-groups": "All Groups",
+    "no-groups": "No groups available",
+    "no-groups-found": "No groups found",
+    "lrdb-group": "LRDB Coordination",
+    "local-msme": "Local Business Group",
+    "direct-message": "Direct Message",
+    "official-announcement": "Official Announcement",
+    "filter-by-label": "Filter by label",
+    "load-older": "Load Older Messages",
+    "message-placeholder": "Type your message here...",
+    "location-shared": "Location shared",
+    "from": "From",
+    "participant": "participant",
+    "participants": "participants",
+    "unavailable": "Chat Unavailable",
+    "connection-error": "Failed to connect to chat service",
+    "voice-call": "Start Voice Call",
+    "video-call": "Start Video Call",
+    "incoming-voice-call": "Incoming Voice Call",
+    "incoming-video-call": "Incoming Video Call",
+    "in-call": "In Call",
+    "connecting": "Connecting...",
+    "call-connection-failed": "Call connection failed",
+    "join": "Join",
+    "decline": "Decline",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "leave-call": "Leave Call",
+    "screen-share": "Share Screen",
+    "turn-on-camera": "Turn On Camera",
+    "turn-off-camera": "Turn Off Camera"
   }
 }

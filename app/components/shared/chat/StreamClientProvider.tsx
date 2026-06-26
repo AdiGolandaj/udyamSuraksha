@@ -5,6 +5,7 @@ import { StreamChat } from 'stream-chat'
 import { Chat } from 'stream-chat-react'
 import { ClientOnly } from 'remix-utils/client-only'
 import { useTranslation } from '~/hooks/useTranslation'
+import 'stream-chat-react/dist/css/v2/index.css'
 
 export interface StreamClientProviderProps {
   apiKey: string
@@ -46,7 +47,25 @@ export function StreamClientProvider({
       try {
         const streamClient = StreamChat.getInstance(apiKey)
 
+        // Reuse the existing connection when navigating between chat pages
+        if (streamClient.userID === userId) {
+          console.log('[StreamClientProvider] Reusing existing connection', { userId })
+          if (isMounted) {
+            setClient(streamClient)
+            setError(null)
+          }
+          return
+        }
+
+        // If connected as a different user, disconnect first
+        if (streamClient.userID) {
+          console.log('[StreamClientProvider] Disconnecting previous user', { previousUserId: streamClient.userID })
+          await streamClient.disconnectUser()
+        }
+
+        console.log('[StreamClientProvider] Connecting user...', { userId, apiKey: apiKey.slice(0, 8) + '...' })
         await streamClient.connectUser(userData, token)
+        console.log('[StreamClientProvider] User connected successfully', { userId, connectionId: streamClient.wsConnection?.connectionID })
 
         if (isMounted) {
           setClient(streamClient)
@@ -54,7 +73,7 @@ export function StreamClientProvider({
         }
       } catch (err) {
         if (isMounted) {
-          console.error('Stream client connection error:', err)
+          console.error('[StreamClientProvider] Connection error:', err)
           setError(t('chat.connection-error'))
         }
       }
@@ -64,11 +83,10 @@ export function StreamClientProvider({
 
     return () => {
       isMounted = false
-      if (client) {
-        client.disconnectUser().catch(console.error)
-      }
+      // Do not disconnect on unmount — the singleton connection is shared
+      // across chat list and chat group pages to avoid connect/disconnect races.
     }
-  }, [apiKey, userId, token, userData, t])
+  }, [apiKey, userId, token]) // userData excluded: object identity changes on every render
 
   if (error) {
     return (
